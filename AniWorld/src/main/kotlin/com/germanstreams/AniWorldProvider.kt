@@ -66,7 +66,11 @@ class AniWorldProvider : MainAPI() {
                 .toSet()
         }.getOrDefault(emptySet())
         if (keys.isNotEmpty()) {
-            addDubStatus(dubExist = "1" in keys, subExist = keys.any { it == "2" || it == "3" })
+            val dub = "1" in keys
+            val sub = keys.any { it == "2" || it == "3" }
+            // Show the Dub chip whenever a dub exists; only mark Sub when there is no dub,
+            // so a badge actually distinguishes dub-available titles from sub-only ones.
+            addDubStatus(dubExist = dub, subExist = sub && !dub)
         }
     }
 
@@ -168,6 +172,21 @@ class AniWorldProvider : MainAPI() {
             }
         }
 
+        // CloudStream's season spinner is a union across Dub+Sub, so dub-less seasons cannot be
+        // hidden when Dub is selected. Annotate the season name instead, so it is clear which
+        // seasons actually offer a German dub.
+        val seasonNames = withLangs.groupBy { it.first.season }.toSortedMap().map { (season, eps) ->
+            val dub = eps.any { "1" in it.second }
+            val sub = eps.any { it.second.any { k -> k == "2" || k == "3" } }
+            val tag = when {
+                dub && sub -> "Dub + Sub"
+                dub -> "Dub"
+                else -> "Sub"
+            }
+            val label = if (season == 0) "Filme" else "Staffel $season"
+            SeasonData(season, "$label · $tag")
+        }
+
         return newAnimeLoadResponse(title, url, TvType.Anime) {
             this.posterUrl = poster
             this.plot = plot
@@ -175,6 +194,7 @@ class AniWorldProvider : MainAPI() {
             this.year = year
             if (dubEpisodes.isNotEmpty()) addEpisodes(DubStatus.Dubbed, dubEpisodes)
             if (subEpisodes.isNotEmpty()) addEpisodes(DubStatus.Subbed, subEpisodes)
+            addSeasonNames(seasonNames)
         }
     }
 
