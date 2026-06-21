@@ -7,12 +7,14 @@ CloudStream-Plugins (`.cs3`) für deutschsprachige Streaming-Anbieter. Basiert a
 
 | Provider | Ordner | Typ | Status |
 |----------|--------|-----|--------|
-| AniWorld (`aniworld.to`) | `AniWorld/` | Anime (Sub & Dub) | ✅ gebaut, Selektoren live verifiziert |
-| s.to (SerienStream) | – | Serien | ⏳ geplant (gleiche Familie wie AniWorld) |
+| AniWorld (`aniworld.to`) | `AniWorld/` | Anime (Sub & Dub) | ✅ fertig (v12), auf TV getestet |
+| s.to (SerienStream) | – | Serien | ⏳ als Nächstes (Familie wie AniWorld) |
 | bs.to (BurningSeries) | – | Serien/Anime | ⏳ geplant |
 | anime-loads.org | – | Anime | ⏳ geplant |
 | kinox / movie4k / movie2k / megakino | – | Filme | ⏳ geplant |
 | moflix, kinoger, filmpalast, chillflix, cineby, kinoking, kinos, aether, streamcloud, streamkiste, einschalten, haschcon | – | Filme/Serien | ⏳ geplant |
+
+Entwickler-Details + offene TODOs: siehe [`DEVNOTES.md`](DEVNOTES.md).
 
 ## Setup (einmalig)
 
