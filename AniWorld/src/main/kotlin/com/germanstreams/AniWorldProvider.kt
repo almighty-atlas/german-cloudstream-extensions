@@ -34,7 +34,6 @@ class AniWorldProvider : MainAPI() {
     }
 
     override val mainPage = mainPageOf(
-        "$mainUrl/neue-episoden" to "Neue Folgen (Deutsch Dub)",
         "$mainUrl/beliebte-animes" to "Beliebt bei AniWorld",
         "$mainUrl/neu" to "Neue Animes",
     )
@@ -44,34 +43,31 @@ class AniWorldProvider : MainAPI() {
         if (page > 1) return newHomePageResponse(request.name, emptyList(), hasNext = false)
         val doc = app.get(request.data).document
 
-        // Special case: /neue-episoden lists newly added episodes with a language flag
-        // per row. Keep only rows that offer a German dub (/public/img/german.svg, not the
-        // German-subtitle flag japanese-german.svg) and link to the series.
-        if (request.data.endsWith("/neue-episoden")) {
-            val items = doc.select("div.newEpisodeList div.row").mapNotNull { row ->
-                // German dub flag is /public/img/german.svg. Must use endsWith("/german.svg")
-                // so we don't match the German-subtitle flag (japanese-german.svg).
-                val hasGermanDub = row.select("img.flag").any { img ->
-                    img.attr("data-src").endsWith("/german.svg") ||
-                        img.attr("src").endsWith("/german.svg")
-                }
-                if (!hasGermanDub) return@mapNotNull null
-                val a = row.selectFirst("a[href*=/episode-]") ?: return@mapNotNull null
-                val seriesUrl = fixUrl(a.attr("href").replace(Regex("/staffel-.*$"), ""))
-                val title = row.selectFirst("strong")?.text()?.ifBlank { null } ?: return@mapNotNull null
-                newAnimeSearchResponse(title, seriesUrl, TvType.Anime) {
-                    addDubStatus(dubExist = true, subExist = false)
-                }
-            }.distinctBy { it.url }
-            return newHomePageResponse(request.name, items, hasNext = false)
-        }
-
         // Cards are wrapped in .coverListItem (homepage carousels) or a grid column
         // div (.col-md-15 on /beliebte-animes and /neu).
-        val items = doc.select("div.coverListItem, div.col-md-15")
+        val base = doc.select("div.coverListItem, div.col-md-15")
             .mapNotNull { it.toSearchResult() }
             .distinctBy { it.url }
+
+        // Listing pages carry no language info, so enrich each card with a Dub/Sub badge by
+        // probing its first episode. Bounded batches keep the request burst reasonable.
+        val items = base.chunked(20).flatMap { chunk ->
+            chunk.amap { card -> card.also { it.addDubSubBadge() } }
+        }
         return newHomePageResponse(request.name, items, hasNext = false)
+    }
+
+    // Probe staffel-1/episode-1 to tag a search card with its available languages.
+    private suspend fun AnimeSearchResponse.addDubSubBadge() {
+        val keys = runCatching {
+            app.get("$url/staffel-1/episode-1").document
+                .select("li[data-link-target][data-lang-key]")
+                .map { it.attr("data-lang-key") }
+                .toSet()
+        }.getOrDefault(emptySet())
+        if (keys.isNotEmpty()) {
+            addDubStatus(dubExist = "1" in keys, subExist = keys.any { it == "2" || it == "3" })
+        }
     }
 
     private fun Element.toSearchResult(): AnimeSearchResponse? {
