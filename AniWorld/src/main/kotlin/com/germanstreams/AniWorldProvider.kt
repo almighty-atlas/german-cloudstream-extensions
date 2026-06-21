@@ -1,6 +1,7 @@
 package com.germanstreams
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
@@ -86,7 +87,7 @@ class AniWorldProvider : MainAPI() {
             .distinct()
             .ifEmpty { listOf(url) } // fall back to the detail page itself (single-season)
 
-        val episodes = seasonUrls.apmap { seasonUrl ->
+        val episodes = seasonUrls.amap { seasonUrl ->
             val sdoc = if (seasonUrl == url) doc else app.get(seasonUrl).document
             val seasonNum = Regex("/staffel-(\\d+)").find(seasonUrl)?.groupValues?.get(1)?.toIntOrNull()
                 ?: if (seasonUrl.endsWith("/filme")) 0 else 1
@@ -123,14 +124,14 @@ class AniWorldProvider : MainAPI() {
         val hosters = doc.select("div.hosterSiteVideo ul li[data-link-target], li.col-md-3.col-xs-12[data-link-target]")
         if (hosters.isEmpty()) return false
 
-        hosters.apmap { li ->
+        hosters.amap { li ->
             val redirect = li.attr("data-link-target").ifBlank {
                 li.selectFirst("a.watchEpisode")?.attr("href").orEmpty()
             }
-            if (redirect.isBlank()) return@apmap
+            if (redirect.isBlank()) return@amap
             // /redirect/{id} responds with a 30x to the real hoster embed (voe.sx, dood, ...).
             val real = app.get(fixUrl(redirect), allowRedirects = false)
-                .headers["location"] ?: return@apmap
+                .headers["location"] ?: return@amap
             loadExtractor(real, "$mainUrl/", subtitleCallback, callback)
         }
         return true
