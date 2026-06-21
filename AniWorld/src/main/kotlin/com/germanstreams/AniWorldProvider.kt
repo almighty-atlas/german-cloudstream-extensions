@@ -48,11 +48,19 @@ class AniWorldProvider : MainAPI() {
         // German-subtitle flag japanese-german.svg) and link to the series.
         if (request.data.endsWith("/neue-episoden")) {
             val items = doc.select("div.newEpisodeList div.row").mapNotNull { row ->
-                if (row.selectFirst("img.flag[data-src\$=/german.svg]") == null) return@mapNotNull null
+                // German dub flag is /public/img/german.svg. Must use endsWith("/german.svg")
+                // so we don't match the German-subtitle flag (japanese-german.svg).
+                val hasGermanDub = row.select("img.flag").any { img ->
+                    img.attr("data-src").endsWith("/german.svg") ||
+                        img.attr("src").endsWith("/german.svg")
+                }
+                if (!hasGermanDub) return@mapNotNull null
                 val a = row.selectFirst("a[href*=/episode-]") ?: return@mapNotNull null
                 val seriesUrl = fixUrl(a.attr("href").replace(Regex("/staffel-.*$"), ""))
                 val title = row.selectFirst("strong")?.text()?.ifBlank { null } ?: return@mapNotNull null
-                newAnimeSearchResponse(title, seriesUrl, TvType.Anime)
+                newAnimeSearchResponse(title, seriesUrl, TvType.Anime) {
+                    addDubStatus(dubExist = true, subExist = false)
+                }
             }.distinctBy { it.url }
             return newHomePageResponse(request.name, items, hasNext = false)
         }
