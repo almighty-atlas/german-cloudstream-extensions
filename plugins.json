@@ -1,0 +1,61 @@
+[
+    {
+        "iconUrl": "https://aniworld.to/favicon.ico",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/almighty-atlas/german-cloudstream-extensions",
+        "fileSize": 59961,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "heavenshallburn"
+        ],
+        "tvTypes": [
+            "Anime",
+            "AnimeMovie",
+            "OVA"
+        ],
+        "version": 15,
+        "internalName": "AniWorld",
+        "description": "\u2605 Eigene Version \u2014 AniWorld, Anime auf Deutsch (Sub & Dub)",
+        "url": "https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/builds/AniWorld.cs3",
+        "name": "AniWorld"
+    },
+    {
+        "iconUrl": "https://filmo.to/favicon.ico",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/almighty-atlas/german-cloudstream-extensions",
+        "fileSize": 52683,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "heavenshallburn"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 5,
+        "internalName": "Filmo",
+        "description": "\u2605 Eigene Version \u2014 Filmo, Filme auf Deutsch",
+        "url": "https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/builds/Filmo.cs3",
+        "name": "Filmo"
+    },
+    {
+        "iconUrl": "https://serienstream.to/favicon.ico",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/almighty-atlas/german-cloudstream-extensions",
+        "fileSize": 51495,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "heavenshallburn"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 6,
+        "internalName": "SerienStream",
+        "description": "\u2605 Eigene Version \u2014 SerienStream (s.to), Serien auf Deutsch",
+        "url": "https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/builds/SerienStream.cs3",
+        "name": "SerienStream"
+    }
+]
