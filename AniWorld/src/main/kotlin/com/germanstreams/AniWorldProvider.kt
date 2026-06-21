@@ -1,6 +1,7 @@
 package com.germanstreams
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
@@ -129,7 +130,7 @@ class AniWorldProvider : MainAPI() {
             .distinct()
             .ifEmpty { listOf(url) } // fall back to the detail page itself (single-season)
 
-        val episodes = seasonUrls.amap { seasonUrl ->
+        val raw = seasonUrls.amap { seasonUrl ->
             val sdoc = if (seasonUrl == url) doc else app.get(seasonUrl).document
             val seasonNum = Regex("/staffel-(\\d+)").find(seasonUrl)?.groupValues?.get(1)?.toIntOrNull()
                 ?: if (seasonUrl.endsWith("/filme")) 0 else 1
@@ -139,20 +140,35 @@ class AniWorldProvider : MainAPI() {
                 val epNum = Regex("/episode-(\\d+)").find(epUrl)?.groupValues?.get(1)?.toIntOrNull()
                 val epName = a.selectFirst("strong")?.text()?.ifBlank { null }
                     ?: a.selectFirst("span")?.text()
-                newEpisode(epUrl) {
-                    this.name = epName
-                    this.season = seasonNum
-                    this.episode = epNum
+                // Per-episode language flags decide dub/sub availability.
+                val flags = row.select("img.flag").map {
+                    (it.attr("data-src").ifBlank { it.attr("src") }).substringAfterLast("/").removeSuffix(".svg")
                 }
+                val hasDub = flags.any { it == "german" }
+                // japanese-german = German subtitle, japanese-english = English subtitle.
+                val hasSub = flags.any { it == "japanese-german" || it == "japanese-english" }
+                RawEp(epUrl, epName, seasonNum, epNum, hasDub, hasSub || (!hasDub && !hasSub))
             }
         }.flatten()
+
+        val dubEpisodes = raw.filter { it.dub }.map {
+            newEpisode(toJson(EpisodeData(it.url, dub = true))) {
+                this.name = it.name; this.season = it.season; this.episode = it.episode
+            }
+        }
+        val subEpisodes = raw.filter { it.sub }.map {
+            newEpisode(toJson(EpisodeData(it.url, dub = false))) {
+                this.name = it.name; this.season = it.season; this.episode = it.episode
+            }
+        }
 
         return newAnimeLoadResponse(title, url, TvType.Anime) {
             this.posterUrl = poster
             this.plot = plot
             this.tags = tags
             this.year = year
-            addEpisodes(DubStatus.Subbed, episodes)
+            if (dubEpisodes.isNotEmpty()) addEpisodes(DubStatus.Dubbed, dubEpisodes)
+            if (subEpisodes.isNotEmpty()) addEpisodes(DubStatus.Subbed, subEpisodes)
         }
     }
 
@@ -162,13 +178,23 @@ class AniWorldProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit,
     ): Boolean {
-        val doc = app.get(data).document
-        val hosters = doc.select("div.hosterSiteVideo ul li[data-link-target], li.col-md-3.col-xs-12[data-link-target]")
+        // data is JSON {url, dub}. Older data may be a bare URL (load all languages).
+        val epData = tryParseJson<EpisodeData>(data)
+        val pageUrl = epData?.url ?: data
+        val allowed = when {
+            epData == null -> setOf("1", "2", "3")
+            epData.dub -> setOf("1")              // German Dub only
+            else -> setOf("2", "3")               // German Sub + English Sub
+        }
+
+        val doc = app.get(pageUrl).document
+        val hosters = doc
+            .select("div.hosterSiteVideo ul li[data-link-target], li.col-md-3.col-xs-12[data-link-target]")
+            .filter { it.attr("data-lang-key") in allowed }
         if (hosters.isEmpty()) return false
 
         // Collect every resolved source together with its language priority, then emit
-        // sorted by quality (desc) and language (Dub > Ger Sub > Eng Sub > rest). CloudStream
-        // re-sorts by quality with a stable sort, so the language tie-break is preserved.
+        // sorted by quality (desc) and language (Ger Sub before Eng Sub within the Sub track).
         val sources = java.util.Collections.synchronizedList(mutableListOf<Pair<Int, ExtractorLink>>())
         hosters.amap { li ->
             val redirect = li.attr("data-link-target").ifBlank {
@@ -209,6 +235,22 @@ class AniWorldProvider : MainAPI() {
         val cover: String?,
         val description: String? = null,
         val productionYear: String? = null,
+    )
+
+    // Intermediate per-episode parse result before splitting into dub/sub tracks.
+    private data class RawEp(
+        val url: String,
+        val name: String?,
+        val season: Int,
+        val episode: Int?,
+        val dub: Boolean,
+        val sub: Boolean,
+    )
+
+    // Serialized into Episode.data so loadLinks knows which language track to load.
+    data class EpisodeData(
+        val url: String = "",
+        val dub: Boolean = false,
     )
 
     private fun String.unescapeHtml(): String =
