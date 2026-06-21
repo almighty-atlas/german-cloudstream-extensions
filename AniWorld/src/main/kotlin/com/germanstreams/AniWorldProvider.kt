@@ -25,7 +25,9 @@ class AniWorldProvider : MainAPI() {
         // These catalog pages are not paginated, only return content on the first page.
         if (page > 1) return newHomePageResponse(request.name, emptyList(), hasNext = false)
         val doc = app.get(request.data).document
-        val items = doc.select("div.coverListItem")
+        // Cards are wrapped in .coverListItem (homepage carousels) or a grid column
+        // div (.col-md-15 on /beliebte-animes and /neu).
+        val items = doc.select("div.coverListItem, div.col-md-15")
             .mapNotNull { it.toSearchResult() }
             .distinctBy { it.url }
         return newHomePageResponse(request.name, items, hasNext = false)
