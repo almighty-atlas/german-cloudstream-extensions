@@ -1,0 +1,64 @@
+[
+    {
+        "iconUrl": "https://aniworld.to/favicon.ico",
+        "fileHash": "sha256-9e35533b59222b9d3a95c572e1f07a8526f8e01e549fc4945d48ebb64aa5686b",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/almighty-atlas/german-cloudstream-extensions",
+        "fileSize": 60076,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "heavenshallburn"
+        ],
+        "tvTypes": [
+            "Anime",
+            "AnimeMovie",
+            "OVA"
+        ],
+        "version": 14,
+        "internalName": "AniWorld",
+        "description": "\u2605 Eigene Version \u2014 AniWorld, Anime auf Deutsch (Sub & Dub)",
+        "url": "https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/builds/AniWorld.cs3",
+        "name": "AniWorld"
+    },
+    {
+        "iconUrl": "https://filmo.to/favicon.ico",
+        "fileHash": "sha256-2432012b610173fe5f7ca49ca398ea9113cac8b559851895397ef88163381a44",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/almighty-atlas/german-cloudstream-extensions",
+        "fileSize": 52306,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "heavenshallburn"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 4,
+        "internalName": "Filmo",
+        "description": "\u2605 Eigene Version \u2014 Filmo, Filme auf Deutsch",
+        "url": "https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/builds/Filmo.cs3",
+        "name": "Filmo"
+    },
+    {
+        "iconUrl": "https://serienstream.to/favicon.ico",
+        "fileHash": "sha256-bfd8bba409bd2083a2cbce6633ac03c78a136d5314c2ebd2e14b004232a1bb00",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/almighty-atlas/german-cloudstream-extensions",
+        "fileSize": 51173,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "heavenshallburn"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 6,
+        "internalName": "SerienStream",
+        "description": "\u2605 Eigene Version \u2014 SerienStream (s.to), Serien auf Deutsch",
+        "url": "https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/builds/SerienStream.cs3",
+        "name": "SerienStream"
+    }
+]
