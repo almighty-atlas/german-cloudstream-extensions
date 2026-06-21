@@ -1,0 +1,24 @@
+[
+    {
+        "iconUrl": "https://aniworld.to/favicon.ico",
+        "fileHash": "sha256-a09945bec7b3463d4ce7366add08f3d4e6e13af956fdfc5cf0f7e05c08e56ac4",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/almighty-atlas/german-cloudstream-extensions",
+        "fileSize": 28820,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "heavenshallburn"
+        ],
+        "tvTypes": [
+            "Anime",
+            "AnimeMovie",
+            "OVA"
+        ],
+        "version": 12,
+        "internalName": "AniWorld",
+        "description": "AniWorld \u2013 Anime auf Deutsch (Sub & Dub)",
+        "url": "https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/builds/AniWorld.cs3",
+        "name": "AniWorld"
+    }
+]
