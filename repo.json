@@ -1,0 +1,8 @@
+{
+    "name": "German CloudStream Extensions",
+    "description": "Provider-Plugins für deutschsprachige Streaming-Anbieter",
+    "manifestVersion": 1,
+    "pluginLists": [
+        "https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/builds/plugins.json"
+    ]
+}
