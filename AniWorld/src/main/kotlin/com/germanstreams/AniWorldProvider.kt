@@ -4,6 +4,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Element
 
 class AniWorldProvider : MainAPI() {
@@ -141,9 +142,23 @@ class AniWorldProvider : MainAPI() {
             // /redirect/{id} responds with a 30x to the real hoster embed (voe.sx, dood, ...).
             val real = app.get(fixUrl(redirect), allowRedirects = false)
                 .headers["location"] ?: return@amap
-            loadExtractor(real, "$mainUrl/", subtitleCallback) { link ->
-                // Prefix each source with its language (Dub/Sub) so the user can pick.
-                callback(if (lang.isBlank()) link else link.copy(name = "$lang · ${link.name}"))
+            if (lang.isBlank()) {
+                loadExtractor(real, "$mainUrl/", subtitleCallback, callback)
+                return@amap
+            }
+            // ExtractorLink.name is a val, so rebuild each link with a language prefix.
+            // loadExtractor's callback is not suspend, so collect first, then re-emit.
+            val collected = mutableListOf<ExtractorLink>()
+            loadExtractor(real, "$mainUrl/", subtitleCallback) { collected.add(it) }
+            collected.forEach { link ->
+                callback(
+                    newExtractorLink(link.source, "$lang · ${link.name}", link.url, link.type) {
+                        this.referer = link.referer
+                        this.quality = link.quality
+                        this.headers = link.headers
+                        this.extractorData = link.extractorData
+                    }
+                )
             }
         }
         return true
