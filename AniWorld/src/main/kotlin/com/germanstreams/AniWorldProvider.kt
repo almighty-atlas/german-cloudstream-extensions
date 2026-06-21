@@ -1,7 +1,6 @@
 package com.germanstreams
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
@@ -161,30 +160,24 @@ class AniWorldProvider : MainAPI() {
             }
         }
 
-        val dubEpisodes = withLangs.filter { "1" in it.second }.map { (ref, _) ->
-            newEpisode(EpisodeData(ref.url, dub = true).toJson()) {
-                this.name = ref.name; this.season = ref.season; this.episode = ref.episode
+        // Single combined episode list (no Dub/Sub toggle). Episodes that offer a German dub
+        // get a 🇩🇪 flag in their name; all available sources are shown when playing.
+        val episodes = withLangs
+            .filter { it.second.isNotEmpty() }
+            .map { (ref, keys) ->
+                val hasDub = "1" in keys
+                newEpisode(ref.url) {
+                    this.name = ((ref.name ?: "") + if (hasDub) " 🇩🇪" else "").trim().ifBlank { null }
+                    this.season = ref.season
+                    this.episode = ref.episode
+                }
             }
-        }
-        val subEpisodes = withLangs.filter { it.second.any { k -> k == "2" || k == "3" } }.map { (ref, _) ->
-            newEpisode(EpisodeData(ref.url, dub = false).toJson()) {
-                this.name = ref.name; this.season = ref.season; this.episode = ref.episode
-            }
-        }
 
-        // CloudStream's season spinner is a union across Dub+Sub, so dub-less seasons cannot be
-        // hidden when Dub is selected. Annotate the season name instead, so it is clear which
-        // seasons actually offer a German dub.
+        // Flag whole seasons that contain at least one German-dub episode.
         val seasonNames = withLangs.groupBy { it.first.season }.toSortedMap().map { (season, eps) ->
             val dub = eps.any { "1" in it.second }
-            val sub = eps.any { it.second.any { k -> k == "2" || k == "3" } }
-            val tag = when {
-                dub && sub -> "Dub + Sub"
-                dub -> "Dub"
-                else -> "Sub"
-            }
             val label = if (season == 0) "Filme" else "Staffel $season"
-            SeasonData(season, "$label · $tag")
+            SeasonData(season, if (dub) "$label 🇩🇪" else label)
         }
 
         return newAnimeLoadResponse(title, url, TvType.Anime) {
@@ -192,8 +185,7 @@ class AniWorldProvider : MainAPI() {
             this.plot = plot
             this.tags = tags
             this.year = year
-            if (dubEpisodes.isNotEmpty()) addEpisodes(DubStatus.Dubbed, dubEpisodes)
-            if (subEpisodes.isNotEmpty()) addEpisodes(DubStatus.Subbed, subEpisodes)
+            addEpisodes(DubStatus.None, episodes)
             addSeasonNames(seasonNames)
         }
     }
@@ -204,19 +196,12 @@ class AniWorldProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit,
     ): Boolean {
-        // data is JSON {url, dub}. Older data may be a bare URL (load all languages).
-        val epData = tryParseJson<EpisodeData>(data)
-        val pageUrl = epData?.url ?: data
-        val allowed = when {
-            epData == null -> setOf("1", "2", "3")
-            epData.dub -> setOf("1")              // German Dub only
-            else -> setOf("2", "3")               // German Sub + English Sub
-        }
+        // data is the episode URL (older builds may have stored JSON {url, dub}).
+        val pageUrl = tryParseJson<EpisodeData>(data)?.url ?: data
 
         val doc = app.get(pageUrl).document
         val hosters = doc
             .select("div.hosterSiteVideo ul li[data-link-target], li.col-md-3.col-xs-12[data-link-target]")
-            .filter { it.attr("data-lang-key") in allowed }
         if (hosters.isEmpty()) return false
 
         // Collect every resolved source together with its language priority, then emit
