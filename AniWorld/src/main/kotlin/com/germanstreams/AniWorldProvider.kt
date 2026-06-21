@@ -152,12 +152,12 @@ class AniWorldProvider : MainAPI() {
         }.flatten()
 
         val dubEpisodes = raw.filter { it.dub }.map {
-            newEpisode(toJson(EpisodeData(it.url, dub = true))) {
+            newEpisode(EpisodeData(it.url, dub = true).toJson()) {
                 this.name = it.name; this.season = it.season; this.episode = it.episode
             }
         }
         val subEpisodes = raw.filter { it.sub }.map {
-            newEpisode(toJson(EpisodeData(it.url, dub = false))) {
+            newEpisode(EpisodeData(it.url, dub = false).toJson()) {
                 this.name = it.name; this.season = it.season; this.episode = it.episode
             }
         }
