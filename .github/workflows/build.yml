@@ -41,18 +41,28 @@ jobs:
         uses: android-actions/setup-android@v2
 
       - name: Build Plugins
+        id: build
         run: |
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
-          ./gradlew make makePluginsJson
-          cp **/build/*.cs3 $GITHUB_WORKSPACE/builds
-          cp build/plugins.json $GITHUB_WORKSPACE/builds
+          set +e
+          ./gradlew make makePluginsJson --stacktrace 2>&1 | tee $GITHUB_WORKSPACE/builds/build.log
+          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          cp **/build/*.cs3 $GITHUB_WORKSPACE/builds 2>/dev/null || true
+          cp build/plugins.json $GITHUB_WORKSPACE/builds 2>/dev/null || true
+          exit 0
 
       - name: Push builds
         run: |
           cd $GITHUB_WORKSPACE/builds
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git add .
+          git add -A
           git commit --amend -m "Build $GITHUB_SHA" || exit 0   # do not error if nothing to commit
           git push --force
+
+      - name: Fail if the build failed
+        if: steps.build.outputs.exit != '0'
+        run: |
+          echo "Gradle build failed (exit ${{ steps.build.outputs.exit }}). See build.log on the builds branch."
+          exit 1
