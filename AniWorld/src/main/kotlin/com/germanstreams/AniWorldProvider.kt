@@ -23,7 +23,17 @@ class AniWorldProvider : MainAPI() {
         else -> ""
     }
 
+    // Source ordering tie-breaker: German Dub first, then German Sub, then the rest.
+    // (Quality stays the primary sort key, this only orders sources of equal quality.)
+    private fun langPriority(key: String): Int = when (key) {
+        "1" -> 0 // German Dub
+        "3" -> 1 // German Sub
+        "2" -> 2 // English Sub
+        else -> 3
+    }
+
     override val mainPage = mainPageOf(
+        "$mainUrl/neue-episoden" to "Neue Folgen (Deutsch Dub)",
         "$mainUrl/beliebte-animes" to "Beliebt bei AniWorld",
         "$mainUrl/neu" to "Neue Animes",
     )
@@ -32,6 +42,21 @@ class AniWorldProvider : MainAPI() {
         // These catalog pages are not paginated, only return content on the first page.
         if (page > 1) return newHomePageResponse(request.name, emptyList(), hasNext = false)
         val doc = app.get(request.data).document
+
+        // Special case: /neue-episoden lists newly added episodes with a language flag
+        // per row. Keep only rows that offer a German dub (/public/img/german.svg, not the
+        // German-subtitle flag japanese-german.svg) and link to the series.
+        if (request.data.endsWith("/neue-episoden")) {
+            val items = doc.select("div.newEpisodeList div.row").mapNotNull { row ->
+                if (row.selectFirst("img.flag[data-src\$=/german.svg]") == null) return@mapNotNull null
+                val a = row.selectFirst("a[href*=/episode-]") ?: return@mapNotNull null
+                val seriesUrl = fixUrl(a.attr("href").replace(Regex("/staffel-.*$"), ""))
+                val title = row.selectFirst("strong")?.text()?.ifBlank { null } ?: return@mapNotNull null
+                newAnimeSearchResponse(title, seriesUrl, TvType.Anime)
+            }.distinctBy { it.url }
+            return newHomePageResponse(request.name, items, hasNext = false)
+        }
+
         // Cards are wrapped in .coverListItem (homepage carousels) or a grid column
         // div (.col-md-15 on /beliebte-animes and /neu).
         val items = doc.select("div.coverListItem, div.col-md-15")
@@ -133,35 +158,41 @@ class AniWorldProvider : MainAPI() {
         val hosters = doc.select("div.hosterSiteVideo ul li[data-link-target], li.col-md-3.col-xs-12[data-link-target]")
         if (hosters.isEmpty()) return false
 
+        // Collect every resolved source together with its language priority, then emit
+        // sorted by quality (desc) and language (Dub > Ger Sub > Eng Sub > rest). CloudStream
+        // re-sorts by quality with a stable sort, so the language tie-break is preserved.
+        val sources = java.util.Collections.synchronizedList(mutableListOf<Pair<Int, ExtractorLink>>())
         hosters.amap { li ->
             val redirect = li.attr("data-link-target").ifBlank {
                 li.selectFirst("a.watchEpisode")?.attr("href").orEmpty()
             }
             if (redirect.isBlank()) return@amap
-            val lang = langLabel(li.attr("data-lang-key"))
+            val key = li.attr("data-lang-key")
+            val lang = langLabel(key)
+            val weight = langPriority(key)
             // /redirect/{id} responds with a 30x to the real hoster embed (voe.sx, dood, ...).
             val real = app.get(fixUrl(redirect), allowRedirects = false)
                 .headers["location"] ?: return@amap
-            if (lang.isBlank()) {
-                loadExtractor(real, "$mainUrl/", subtitleCallback, callback)
-                return@amap
-            }
-            // ExtractorLink.name is a val, so rebuild each link with a language prefix.
-            // loadExtractor's callback is not suspend, so collect first, then re-emit.
+            // loadExtractor's callback is not suspend, so collect first, then rebuild.
             val collected = mutableListOf<ExtractorLink>()
             loadExtractor(real, "$mainUrl/", subtitleCallback) { collected.add(it) }
             collected.forEach { link ->
-                callback(
-                    newExtractorLink(link.source, "$lang · ${link.name}", link.url, link.type) {
-                        this.referer = link.referer
-                        this.quality = link.quality
-                        this.headers = link.headers
-                        this.extractorData = link.extractorData
-                    }
-                )
+                val named = if (lang.isBlank()) link else newExtractorLink(
+                    link.source, "$lang · ${link.name}", link.url, link.type
+                ) {
+                    this.referer = link.referer
+                    this.quality = link.quality
+                    this.headers = link.headers
+                    this.extractorData = link.extractorData
+                }
+                sources.add(weight to named)
             }
         }
-        return true
+
+        sources
+            .sortedWith(compareByDescending<Pair<Int, ExtractorLink>> { it.second.quality }.thenBy { it.first })
+            .forEach { callback(it.second) }
+        return sources.isNotEmpty()
     }
 
     private data class SearchItem(
