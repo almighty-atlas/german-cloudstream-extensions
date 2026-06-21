@@ -130,7 +130,9 @@ class AniWorldProvider : MainAPI() {
             .distinct()
             .ifEmpty { listOf(url) } // fall back to the detail page itself (single-season)
 
-        val raw = seasonUrls.amap { seasonUrl ->
+        // Episode list from the season pages. The language flags shown here are a static
+        // legend (always all three) and do NOT reflect real availability, so we ignore them.
+        val refs = seasonUrls.amap { seasonUrl ->
             val sdoc = if (seasonUrl == url) doc else app.get(seasonUrl).document
             val seasonNum = Regex("/staffel-(\\d+)").find(seasonUrl)?.groupValues?.get(1)?.toIntOrNull()
                 ?: if (seasonUrl.endsWith("/filme")) 0 else 1
@@ -140,25 +142,33 @@ class AniWorldProvider : MainAPI() {
                 val epNum = Regex("/episode-(\\d+)").find(epUrl)?.groupValues?.get(1)?.toIntOrNull()
                 val epName = a.selectFirst("strong")?.text()?.ifBlank { null }
                     ?: a.selectFirst("span")?.text()
-                // Per-episode language flags decide dub/sub availability.
-                val flags = row.select("img.flag").map {
-                    (it.attr("data-src").ifBlank { it.attr("src") }).substringAfterLast("/").removeSuffix(".svg")
-                }
-                val hasDub = flags.any { it == "german" }
-                // japanese-german = German subtitle, japanese-english = English subtitle.
-                val hasSub = flags.any { it == "japanese-german" || it == "japanese-english" }
-                RawEp(epUrl, epName, seasonNum, epNum, hasDub, hasSub || (!hasDub && !hasSub))
+                RawEp(epUrl, epName, seasonNum, epNum)
             }
         }.flatten()
 
-        val dubEpisodes = raw.filter { it.dub }.map {
-            newEpisode(EpisodeData(it.url, dub = true).toJson()) {
-                this.name = it.name; this.season = it.season; this.episode = it.episode
+        // Real per-episode languages live on each episode page (the hoster list carries the
+        // actual data-lang-key values). Fetch in bounded batches so long series don't fire
+        // hundreds of concurrent requests.
+        val withLangs = refs.chunked(20).flatMap { chunk ->
+            chunk.amap { ref ->
+                val keys = runCatching {
+                    app.get(ref.url).document
+                        .select("li[data-link-target][data-lang-key]")
+                        .map { it.attr("data-lang-key") }
+                        .toSet()
+                }.getOrDefault(emptySet())
+                ref to keys
             }
         }
-        val subEpisodes = raw.filter { it.sub }.map {
-            newEpisode(EpisodeData(it.url, dub = false).toJson()) {
-                this.name = it.name; this.season = it.season; this.episode = it.episode
+
+        val dubEpisodes = withLangs.filter { "1" in it.second }.map { (ref, _) ->
+            newEpisode(EpisodeData(ref.url, dub = true).toJson()) {
+                this.name = ref.name; this.season = ref.season; this.episode = ref.episode
+            }
+        }
+        val subEpisodes = withLangs.filter { it.second.any { k -> k == "2" || k == "3" } }.map { (ref, _) ->
+            newEpisode(EpisodeData(ref.url, dub = false).toJson()) {
+                this.name = ref.name; this.season = ref.season; this.episode = ref.episode
             }
         }
 
@@ -237,14 +247,12 @@ class AniWorldProvider : MainAPI() {
         val productionYear: String? = null,
     )
 
-    // Intermediate per-episode parse result before splitting into dub/sub tracks.
+    // Intermediate per-episode parse result before resolving languages.
     private data class RawEp(
         val url: String,
         val name: String?,
         val season: Int,
         val episode: Int?,
-        val dub: Boolean,
-        val sub: Boolean,
     )
 
     // Serialized into Episode.data so loadLinks knows which language track to load.
