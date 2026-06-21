@@ -14,12 +14,6 @@ class AniWorldProvider : MainAPI() {
     override val supportedTypes = setOf(TvType.Anime, TvType.AnimeMovie, TvType.OVA)
 
     // lang-key on the hoster <li>: 1 = German Dub, 2 = English Sub, 3 = German Sub
-    private fun langName(key: String): String = when (key) {
-        "1" -> "Deutsch"
-        "2" -> "English Sub"
-        "3" -> "Deutsch Sub"
-        else -> "?"
-    }
 
     override val mainPage = mainPageOf(
         "$mainUrl/beliebte-animes" to "Beliebt bei AniWorld",
@@ -134,16 +128,10 @@ class AniWorldProvider : MainAPI() {
                 li.selectFirst("a.watchEpisode")?.attr("href").orEmpty()
             }
             if (redirect.isBlank()) return@apmap
-            val lang = langName(li.attr("data-lang-key"))
             // /redirect/{id} responds with a 30x to the real hoster embed (voe.sx, dood, ...).
             val real = app.get(fixUrl(redirect), allowRedirects = false)
                 .headers["location"] ?: return@apmap
-            loadExtractor(real, "$mainUrl/", subtitleCallback) { link ->
-                // Tag each source with its language so the user can pick.
-                callback(
-                    link.copy(name = "${link.name} [$lang]")
-                )
-            }
+            loadExtractor(real, "$mainUrl/", subtitleCallback, callback)
         }
         return true
     }
