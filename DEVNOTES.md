@@ -44,7 +44,7 @@ Working notes for developing these CloudStream provider plugins. Read this first
 | # | Site | Folder | Status |
 |---|------|--------|--------|
 | 1 | aniworld.to | `AniWorld/` | ✅ done (v12), tested on TV |
-| 2 | s.to | – | ⏳ next (Serienstream family — clone AniWorld) |
+| 2 | serienstream.to (s.to) | `SerienStream/` | 🧪 v1 gebaut, **auf TV ungetestet** |
 | 3 | bs.to | – | ⏳ next |
 | 4 | anime-loads.org | – | ⏳ next |
 | 5 | www21.kinox.to | – | ⏳ movie family |
@@ -63,6 +63,40 @@ Working notes for developing these CloudStream provider plugins. Read this first
 | 18 | streamkiste.taxi | – | ⏳ unique |
 | 19 | einschalten.in | – | ⏳ unique |
 | 20 | haschcon.com | – | ⏳ unique |
+
+## SerienStream (s.to) site facts
+
+**Wichtig: s.to ist KEIN AniWorld-Klon mehr.** Die beiden Sites sind auseinandergelaufen —
+serienstream.to wurde Anfang 2026 redesignt, aniworld.to serviert weiter das alte Layout.
+Belegt durch Bnyro/GermanProviders: dessen `Aniworld` nutzt die alten Selektoren
+(`div.coverListItem`, `div.seriesCoverBox`), sein `Serienstream` wurde am 2026-01-29 mit
+"rewrite for compatibility with new website layout" komplett neu geschrieben.
+
+- Domain: `serienstream.to` (Bnyro-Commit 2026-07-07 "switch to serienstream.to domain").
+  s.to leitet dorthin. Bei einem erneuten Umzug reicht `mainUrl` im Provider.
+- Suche: `GET /suche?term=X&tab=shows` (HTML, kein JSON-Endpoint mehr) → `.results-group .card`
+- Katalog: `/beliebte-serien` → Sektionen `.popular-page > div` (h2 + `a.show-card`)
+- Detail: `.show-header-wrapper .container-fluid > div`; Staffeln `#season-nav ul > li a`
+- Episodenzeilen: `.episode-section .episode-row`, Ziel-URL steckt im **`onclick`**, nicht in href
+- Play: `.link-wrapper > button[data-play-url]` + `data-provider-name` / `data-language-label`
+  (Freitext-Sprache wie "Deutsch", nicht der numerische `data-lang-key` von AniWorld)
+
+### Warum Bnyros Serienstream Link-Fehler produziert
+
+Vier Schwächen in dessen `loadLinks`, die im eigenen Provider behoben sind:
+
+1. **Falscher Referer:** `loadExtractor(url, data, ...)` übergibt die Episoden-URL. Hoster
+   (voe, filemoon, vidmoly) prüfen gegen den Site-Root → `$mainUrl/`.
+2. **Redirect wird durchlaufen:** `app.get(streamUrl).url` folgt der Kette bis zum Ende und
+   landet auf dem, was der Hoster einer refererlosen Anfrage ausliefert (oft Anti-Bot-Stub).
+   Stattdessen `allowRedirects = false` + `location`-Header lesen; voller GET nur als Fallback.
+3. **`return true` immer** — auch bei null gefundenen Quellen. CloudStream meldet dann Erfolg
+   und zeigt nichts. Richtig ist `sources.isNotEmpty()`.
+4. **`runBlocking` im Extractor-Callback**, der auf dem Main-Dispatcher laufen kann. Stattdessen
+   Links erst sammeln, dann außerhalb via `newExtractorLink` neu bauen.
+
+Nicht verifiziert: welcher davon *deine* konkreten Fehler auslöst — die Site ist aus der
+Build-Sandbox nicht erreichbar (Netzwerk-Policy blockt Streaming-Domains).
 
 ## AniWorld site facts (reference for the s.to/bs.to family)
 
