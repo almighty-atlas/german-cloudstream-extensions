@@ -11,19 +11,44 @@ dorthin, nicht hierher.
 - Antworten an den User: **Deutsch**.
 - Code, Kommentare, Commit-Messages: **Englisch**.
 
-## Was in dieser Sandbox nicht geht
+## Netzwerk und lokaler Build
 
-Nicht versuchen, es kostet nur Zeit — die Netzwerk-Policy blockt es:
+Das Environment läuft auf `Custom` mit freigegebenen Domains. Verifiziert am 2026-08-29:
 
-- **Alle Streaming-Sites** (`aniworld.to`, `serienstream.to`, …) → kein Live-Scraping, keine
-  Selektor-Verifikation von hier aus.
-- **`dl.google.com` und `jitpack.io`** → kein Android SDK, keine cloudstream-Stubs, also
-  **kein lokaler `./gradlew`-Build**.
+| Domain | Status |
+|---|---|
+| `dl.google.com`, `jitpack.io` | ✅ frei → **lokaler Gradle-Build möglich** |
+| `serienstream.to` | ✅ frei → Selektoren live prüfbar |
+| `aniworld.to` | ⚠️ erreichbar, Site antwortet 403 (Bot-Schutz, kein Proxy-Block) |
+| `s.to` | ❌ nicht gelistet (egal, leitet auf serienstream.to) |
 
-Daraus folgt: Kompilierbarkeit wird ausschließlich über CI verifiziert, und Selektoren gar
-nicht. Wenn Selektoren unsicher sind, **den User um den Seitenquelltext bitten statt zu raten**.
-Vor dem Push hilft nur statische Prüfung — genutzte cloudstream-APIs gegen bereits
-kompilierenden Code abgleichen (`AniWorld/`, oder Bnyros Repo).
+Root-URLs sind ein schlechter Test: `dl.google.com/` leitet auf `www.google.com` (nicht gelistet)
+und sieht dann fälschlich gesperrt aus. Immer einen echten Pfad testen.
+
+**Vor jedem Push lokal kompilieren** — das SDK ist nicht im Image, einmal pro Session einrichten:
+
+```bash
+curl -sS -o /tmp/cmdline.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+mkdir -p /home/user/android-sdk/cmdline-tools && unzip -q /tmp/cmdline.zip -d /home/user/android-sdk/cmdline-tools
+mv /home/user/android-sdk/cmdline-tools/cmdline-tools /home/user/android-sdk/cmdline-tools/latest
+yes | /home/user/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/home/user/android-sdk --licenses >/dev/null
+/home/user/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/home/user/android-sdk "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+echo "sdk.dir=/home/user/android-sdk" > local.properties     # steht in .gitignore
+export ANDROID_HOME=/home/user/android-sdk ANDROID_SDK_ROOT=/home/user/android-sdk
+./gradlew :<Provider>:compileDebugKotlin --no-daemon
+```
+
+Bekannte, unkritische Warnung in allen Providern: *„Type annotation class 'Nullable' … is
+inaccessible"* bei `selectFirst(...)?.let { it.attr(...) }`. Kommt vom Classpath (jsoups
+Annotation fehlt im Stub), nicht vom Code — eine explizite Typannotation behebt sie **nicht**.
+Ab Kotlin 2.4 wird sie zum Fehler; dann die Annotations-Dependency ergänzen.
+
+### Was weiterhin nicht geht
+- **Chromium/Playwright kommt nicht durch den Agent-Proxy** (`ERR_CONNECTION_RESET`, auch mit
+  `--proxy-server`). Kein JS-Rendering, also keine Bot-Challenges lösen.
+- **Der Play-Endpoint `/r?t=<token>` ist von hier nicht auflösbar**: DDoS-Guard antwortet 403
+  oder liefert eine „Checking your browser"-Seite. Die Redirect-Mechanik in `loadLinks` lässt
+  sich hier also **nicht** verifizieren — nur auf dem Android TV des Users.
 
 ## Build- und Testzyklus
 

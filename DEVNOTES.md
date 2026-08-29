@@ -44,7 +44,7 @@ Working notes for developing these CloudStream provider plugins. Read this first
 | # | Site | Folder | Status |
 |---|------|--------|--------|
 | 1 | aniworld.to | `AniWorld/` | ✅ done (v12), tested on TV |
-| 2 | serienstream.to (s.to) | `SerienStream/` | 🧪 v1 gebaut, **auf TV ungetestet** |
+| 2 | serienstream.to (s.to) | `SerienStream/` | 🧪 v2, Selektoren live verifiziert, **auf TV ungetestet** |
 | 3 | bs.to | – | ⏳ next |
 | 4 | anime-loads.org | – | ⏳ next |
 | 5 | www21.kinox.to | – | ⏳ movie family |
@@ -78,8 +78,16 @@ Belegt durch Bnyro/GermanProviders: dessen `Aniworld` nutzt die alten Selektoren
 - Katalog: `/beliebte-serien` → Sektionen `.popular-page > div` (h2 + `a.show-card`)
 - Detail: `.show-header-wrapper .container-fluid > div`; Staffeln `#season-nav ul > li a`
 - Episodenzeilen: `.episode-section .episode-row`, Ziel-URL steckt im **`onclick`**, nicht in href
-- Play: `.link-wrapper > button[data-play-url]` + `data-provider-name` / `data-language-label`
-  (Freitext-Sprache wie "Deutsch", nicht der numerische `data-lang-key` von AniWorld)
+- Play: `button[data-play-url]` + `data-provider-name` / `data-language-label`.
+  **Verifiziert am 2026-08-29 gegen die Live-Site.** Die Sprachwerte sind `Deutsch` (Dub),
+  `Ger-Sub` und `Englisch` — nicht ausgeschriebene Formen wie "Deutsch (Untertitel)". Die
+  abgekürzte `Ger-`-Form muss die Sprachheuristik mit abdecken.
+- `data-play-url` ist `/r?t=<Laravel-Token>`, nicht `/redirect/{id}` wie bei AniWorld.
+  **Von der Sandbox aus nicht auflösbar** (DDoS-Guard: 403 bzw. "Checking your browser").
+  Ob der Endpoint per `location`-Header oder erst nach der Redirect-Kette auflöst, ist damit
+  offen — `loadLinks` deckt beide Fälle ab.
+- Die Site steht hinter **DDoS-Guard** (`__ddg8_`/`__ddg9_`/`__ddg10_`-Cookies). Normale Seiten
+  gehen durch, der Play-Endpoint nicht.
 
 ### Warum Bnyros Serienstream Link-Fehler produziert
 

@@ -8,7 +8,7 @@ CloudStream-Plugins (`.cs3`) für deutschsprachige Streaming-Anbieter. Basiert a
 | Provider | Ordner | Typ | Status |
 |----------|--------|-----|--------|
 | AniWorld (`aniworld.to`) | `AniWorld/` | Anime (Sub & Dub) | ✅ fertig (v12), auf TV getestet |
-| SerienStream (`serienstream.to` / `s.to`) | `SerienStream/` | Serien | 🧪 v1, auf TV noch ungetestet |
+| SerienStream (`serienstream.to` / `s.to`) | `SerienStream/` | Serien | 🧪 v2, auf TV noch ungetestet |
 | bs.to (BurningSeries) | – | Serien/Anime | ⏳ geplant |
 | anime-loads.org | – | Anime | ⏳ geplant |
 | kinox / movie4k / movie2k / megakino | – | Filme | ⏳ geplant |

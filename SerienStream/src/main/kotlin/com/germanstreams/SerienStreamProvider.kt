@@ -22,13 +22,18 @@ class SerienStreamProvider : MainAPI() {
         "$mainUrl/beliebte-serien" to "Beliebte Serien",
     )
 
-    // The site labels a source with a free-text language ("Deutsch", "Englisch (Untertitel)", …)
-    // rather than a numeric key, so match tolerantly instead of on exact strings.
-    private fun isGerman(label: String) =
-        "deutsch" in label.lowercase() || "german" in label.lowercase()
+    // The site labels a source with a free-text language rather than a numeric key. Values
+    // seen on the live site: "Deutsch" (dub), "Ger-Sub", "Englisch". Match tolerantly — the
+    // abbreviated "Ger-" form in particular is easy to miss.
+    private fun isGerman(label: String): Boolean {
+        val l = label.lowercase()
+        return "deutsch" in l || "german" in l || l.startsWith("ger")
+    }
 
-    private fun isSubbed(label: String) =
-        "untertitel" in label.lowercase() || "sub" in label.lowercase()
+    private fun isSubbed(label: String): Boolean {
+        val l = label.lowercase()
+        return "untertitel" in l || "sub" in l
+    }
 
     // Tie-breaker for sources of equal quality: German dub, German sub, then the rest.
     private fun langPriority(label: String): Int = when {
