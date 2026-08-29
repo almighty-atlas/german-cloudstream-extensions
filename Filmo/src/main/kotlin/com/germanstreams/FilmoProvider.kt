@@ -101,6 +101,15 @@ class FilmoProvider : MainAPI() {
         }
     }
 
+    /**
+     * One host yields several links that differ by variant, not by quality: a bare name is the
+     * adaptive master playlist, others append the resolution or the container ("Voe MP4").
+     * Without this they would all render under the same chip label and be indistinguishable.
+     */
+    private fun variantOf(link: ExtractorLink): String =
+        link.name.removePrefix(link.source).trim().trimStart('-', '·', '|', ':').trim()
+            .ifBlank { "Auto" } // adaptive playlist: quality is chosen at playback time
+
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -137,9 +146,18 @@ class FilmoProvider : MainAPI() {
                     getQualityFromName(label) > 0 -> getQualityFromName(label)
                     else -> getQualityFromName(link.name)
                 }
+                // The chip label already names host and release; only append the variant
+                // when it adds something the label does not already say.
+                val variant = variantOf(link)
+                val display = when {
+                    label.isBlank() -> listOfNotNull(link.source.ifBlank { null }, variant)
+                        .joinToString(" · ")
+                    label.contains(variant, ignoreCase = true) -> label
+                    else -> "$label · $variant"
+                }
                 val named = newExtractorLink(
                     link.source,
-                    label.ifBlank { link.name },
+                    display,
                     link.url,
                     link.type,
                 ) {

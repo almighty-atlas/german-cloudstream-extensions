@@ -71,6 +71,13 @@ sortieren dann wie „unbekannt" ganz nach hinten. Beide Provider holen sie desh
 `getQualityFromName(...)` nach, wenn das Feld leer ist (bei Filmo zuerst aus dem Chip-Text,
 der die Qualität ohnehin nennt).
 
+### Namensschema
+
+Einheitlich **`<Sprache> · <Hoster> · <Variante>`**, z. B. `🇩🇪 Deutsch · Voe · 712p`. Die
+Variante entsteht aus `link.name` minus `link.source`; bleibt dabei nichts übrig, ist es die
+adaptive Master-Playlist und wird als **`Auto`** ausgewiesen statt leer zu bleiben. Filmo hängt
+die Variante nur an, wenn der Chip-Text sie nicht ohnehin schon nennt.
+
 ## Provider status
 
 | # | Site | Folder | Status |

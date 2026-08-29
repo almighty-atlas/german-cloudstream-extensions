@@ -55,6 +55,16 @@ class SerienStreamProvider : MainAPI() {
         return "$flag $label"
     }
 
+    /**
+     * One host yields several links that differ by variant, not by quality: a bare name is the
+     * adaptive master playlist, others append the resolution ("Voe 712p") or the container
+     * ("Voe MP4"). Strip the host prefix to get at that variant so every source can be
+     * rendered as "<language> · <host> · <variant>" instead of an inconsistent mix.
+     */
+    private fun variantOf(link: ExtractorLink): String =
+        link.name.removePrefix(link.source).trim().trimStart('-', '·', '|', ':').trim()
+            .ifBlank { "Auto" } // adaptive playlist: quality is chosen at playback time
+
     // The pre-2026 markup used numeric keys; map them onto the same vocabulary so the
     // legacy fallback in loadLinks shares the labelling and ordering logic.
     private fun legacyLangLabel(key: String): String = when (key) {
@@ -253,9 +263,14 @@ class SerienStreamProvider : MainAPI() {
             // name in that case. Adaptive playlists and bare MP4 links legitimately have no
             // resolution — those stay unknown.
             val quality = if (link.quality > 0) link.quality else getQualityFromName(link.name)
+            val display = listOfNotNull(
+                prefix.ifBlank { null },
+                link.source.ifBlank { null },
+                variantOf(link),
+            ).joinToString(" · ")
             val named = newExtractorLink(
                 link.source,
-                if (prefix.isBlank()) link.name else "$prefix · ${link.name}",
+                display,
                 link.url,
                 link.type,
             ) {
