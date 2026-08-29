@@ -12,7 +12,7 @@ class SerienStreamProvider : MainAPI() {
     // s.to redirects here; the site moved to this domain in mid-2026. If it moves again this
     // is the only line that needs to change.
     override var mainUrl = "https://serienstream.to"
-    override var name = "SerienStream"
+    override var name = "SerienStream ★"
     override val hasMainPage = true
     override var lang = "de"
     override val hasQuickSearch = true

@@ -1,8 +1,8 @@
 // Use an integer for version numbers
-version = 2
+version = 3
 
 cloudstream {
-    description = "SerienStream (s.to) – Serien auf Deutsch"
+    description = "★ Eigene Version — SerienStream (s.to), Serien auf Deutsch"
     authors = listOf("heavenshallburn")
 
     /**

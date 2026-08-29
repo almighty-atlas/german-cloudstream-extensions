@@ -39,6 +39,18 @@ Working notes for developing these CloudStream provider plugins. Read this first
   subExist)` renders Dub/Sub chips on cards. `EpisodeResponse.addSeasonNames(List<SeasonData>)`
   names seasons in the spinner.
 
+## Namenskonvention
+
+Eigene Provider tragen ein **★-Suffix** im `MainAPI.name` (`"AniWorld ★"`, `"SerienStream ★"`),
+damit sie in Suchergebnissen und der Quellenliste von gleichnamigen Providern aus anderen Repos
+(z. B. Bnyro/GermanProviders) unterscheidbar sind. Die `description` trägt zusätzlich ein
+`★ Eigene Version —`-Präfix für den Extensions-Manager.
+
+**Achtung bei Änderungen an `MainAPI.name`:** der Wert wird als `apiName` in
+`DataStoreHelper.BookmarkedData` und `ResumeWatchingResult` gespeichert. Eine spätere Umbenennung
+entkoppelt vorhandene Lesezeichen und den Watch-Fortschritt vom Provider. Der Name sollte ab
+jetzt stabil bleiben.
+
 ## Provider status
 
 | # | Site | Folder | Status |

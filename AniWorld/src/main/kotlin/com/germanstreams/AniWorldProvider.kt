@@ -9,7 +9,7 @@ import org.jsoup.nodes.Element
 
 class AniWorldProvider : MainAPI() {
     override var mainUrl = "https://aniworld.to"
-    override var name = "AniWorld"
+    override var name = "AniWorld ★"
     override val hasMainPage = true
     override var lang = "de"
     override val hasQuickSearch = true

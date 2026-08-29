@@ -80,6 +80,15 @@ Ab Kotlin 2.4 wird sie zum Fehler; dann die Annotations-Dependency ergänzen.
   ```
   Dessen Selektoren übernehmen, dessen `loadLinks` **nicht** — siehe nächster Abschnitt.
 
+## Namenskonvention
+
+Eigene Provider tragen ein **★-Suffix** im `MainAPI.name` und ein `★ Eigene Version —`-Präfix in
+der `description` — der User nutzt parallel andere Extension-Repos mit gleichnamigen Providern.
+Bei neuen Providern gleich so anlegen.
+
+`MainAPI.name` ist der `apiName`, unter dem Lesezeichen und Watch-Fortschritt gespeichert werden.
+**Nie ohne Rückfrage ändern** — eine Umbenennung entkoppelt vorhandene Nutzerdaten.
+
 ## loadLinks: so und nicht anders
 
 Diese vier Punkte sind die Ursache der meisten „Link-Fehler". Bei jedem Provider einhalten:

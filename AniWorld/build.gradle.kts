@@ -1,8 +1,8 @@
 // Use an integer for version numbers
-version = 12
+version = 13
 
 cloudstream {
-    description = "AniWorld – Anime auf Deutsch (Sub & Dub)"
+    description = "★ Eigene Version — AniWorld, Anime auf Deutsch (Sub & Dub)"
     authors = listOf("heavenshallburn")
 
     /**
