@@ -46,7 +46,10 @@ jobs:
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
           set +e
-          ./gradlew make makePluginsJson --stacktrace 2>&1 | tee $GITHUB_WORKSPACE/builds/build.log
+          # --continue: one provider failing to compile must not stop the others from
+          # building. Without it a broken new provider takes the working ones down with it,
+          # because the old .cs3 files were already deleted above.
+          ./gradlew make makePluginsJson --continue --stacktrace 2>&1 | tee $GITHUB_WORKSPACE/builds/build.log
           echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
           cp **/build/*.cs3 $GITHUB_WORKSPACE/builds 2>/dev/null || true
           cp build/plugins.json $GITHUB_WORKSPACE/builds 2>/dev/null || true
