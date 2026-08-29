@@ -57,7 +57,8 @@ jetzt stabil bleiben.
 |---|------|--------|--------|
 | 1 | aniworld.to | `AniWorld/` | ✅ done (v12), tested on TV |
 | 2 | serienstream.to (s.to) | `SerienStream/` | 🧪 v2, Selektoren live verifiziert, **auf TV ungetestet** |
-| 3 | bs.to | – | ⏳ next |
+| 3 | filmo.to | `Filmo/` | 🧪 v1, Kette live verifiziert, **auf TV ungetestet** |
+| 4 | bs.to | – | ⏳ next |
 | 4 | anime-loads.org | – | ⏳ next |
 | 5 | www21.kinox.to | – | ⏳ movie family |
 | 6 | movie4k.sx | – | ⏳ movie family |
@@ -117,6 +118,39 @@ Vier Schwächen in dessen `loadLinks`, die im eigenen Provider behoben sind:
 
 Nicht verifiziert: welcher davon *deine* konkreten Fehler auslöst — die Site ist aus der
 Build-Sandbox nicht erreichbar (Netzwerk-Policy blockt Streaming-Domains).
+
+## Filmo (filmo.to) site facts
+
+Reine **Film**-Seite (`/movies/...`, keine Serien). Alle Selektoren am 2026-08-29 gegen die
+Live-Site verifiziert. Braucht einen Desktop-User-Agent, sonst weicht das Markup ab.
+
+- Katalog: `/popular` → Sektionen `section.popular-spotlight` + `div.video-row`, Überschrift `h3`
+- Karten: `.popular-spotlight-card__link` (Titel im **`h4`**) und `a.video-card` (Titel im
+  **`img[alt]`**). Bnyros `[class*=title]` liefert hier **leer** — nicht übernehmen.
+- Suche: `GET /search?q=X` → `section.search-top-results article > a`, Titel `[class*=__title]`
+- Detail: `.primary-container h1`, `p.movie-detail-synopsis`, `img.ft-packshot-meta`,
+  Metadaten als `div.details-group dl` (dt/dd) mit deutschen Labels: `Erscheinungsdatum`,
+  `Laufzeit`, `Bewertung`, `Genres`, `Regie`, `Darsteller`
+
+### Link-Auflösung (zweistufig, mit Einmal-Token)
+
+1. Filmseite laden — liefert das **`XSRF-TOKEN`-Cookie**, das Schritt 2 braucht. Cookies müssen
+   über alle folgenden Requests mitgeführt werden.
+2. Pro `.provider-chip[data-p]`: `POST /n` mit `{"p": <data-p>}`, Header `X-XSRF-TOKEN`
+   (Cookie-Wert, `%3D` → `=`) → Antwort `{"x": "<slug>"}`
+3. `GET /n/{slug}` → die Hoster-URL
+
+**Der Slug ist ein Einmal-Token: ein zweiter Abruf antwortet 404.** Also nur *ein* Request pro
+Slug — kein Retry, kein „erst Location prüfen, dann nochmal voll laden". Beide Ausgänge aus
+derselben Antwort bedienen (`allowRedirects = false`):
+
+| Hoster | Antwort | Wo die URL steckt |
+|---|---|---|
+| VOE | `302` | `location`-Header |
+| Byse | `200` | Interstitial-Seite, einziger externer `<a href>` |
+
+Der Chip-Text (`"VOE WEB-DL 720p"`) trägt Hoster + Release + Qualität und ist als Quellenname
+informativer als der Extractor-Default.
 
 ## AniWorld site facts (reference for the s.to/bs.to family)
 
