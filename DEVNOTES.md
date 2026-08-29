@@ -51,6 +51,26 @@ damit sie in Suchergebnissen und der Quellenliste von gleichnamigen Providern au
 entkoppelt vorhandene Lesezeichen und den Watch-Fortschritt vom Provider. Der Name sollte ab
 jetzt stabil bleiben.
 
+## Quellen-Benennung und Qualität
+
+Ein Hoster liefert pro Episode oft **mehrere Links unterschiedlicher Art**, nicht mehrere
+Qualitätsstufen. Beim VOE-Extractor (dessen `name` intern nur `"Voe"` ist) entstehen daraus:
+
+| Angezeigt | Was es ist | Qualität |
+|---|---|---|
+| `Voe 712p` | konkrete HLS-Variante aus der Master-Playlist | bekannt |
+| `Voe MP4` | direkter MP4-Link | nicht ohne Laden der Datei ermittelbar |
+| `Voe` | adaptive Master-Playlist | hat keine feste — Player wechselt zur Laufzeit |
+
+Die Qualität lässt sich also **nicht für alle Links abgreifen**; bei den letzten beiden gibt es
+schlicht keine. Krumme Werte wie `712p` sind echte Bildhöhen (Cinemascope-Crop) und liegen
+neben dem `Qualities`-Enum (`P360/P480/P720/…`).
+
+Manche Extractor-Links tragen die Auflösung nur im **Namen** und lassen `quality` leer — die
+sortieren dann wie „unbekannt" ganz nach hinten. Beide Provider holen sie deshalb per
+`getQualityFromName(...)` nach, wenn das Feld leer ist (bei Filmo zuerst aus dem Chip-Text,
+der die Qualität ohnehin nennt).
+
 ## Provider status
 
 | # | Site | Folder | Status |

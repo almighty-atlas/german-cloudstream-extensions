@@ -4,6 +4,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.getQualityFromName
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Element
@@ -129,11 +130,21 @@ class FilmoProvider : MainAPI() {
             val collected = mutableListOf<ExtractorLink>()
             runCatching { loadExtractor(target, "$mainUrl/", subtitleCallback) { collected.add(it) } }
             collected.forEach { link ->
-                val named = if (label.isBlank()) link else newExtractorLink(
-                    link.source, label, link.url, link.type
+                // The chip label states the quality ("VOE WEB-DL 720p") even when the
+                // extractor leaves it unset, so fall back to it before the link's own name.
+                val quality = when {
+                    link.quality > 0 -> link.quality
+                    getQualityFromName(label) > 0 -> getQualityFromName(label)
+                    else -> getQualityFromName(link.name)
+                }
+                val named = newExtractorLink(
+                    link.source,
+                    label.ifBlank { link.name },
+                    link.url,
+                    link.type,
                 ) {
                     this.referer = link.referer
-                    this.quality = link.quality
+                    this.quality = quality
                     this.headers = link.headers
                     this.extractorData = link.extractorData
                 }

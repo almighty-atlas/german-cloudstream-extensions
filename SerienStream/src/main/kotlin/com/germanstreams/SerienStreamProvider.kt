@@ -4,6 +4,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.getQualityFromName
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Element
@@ -247,11 +248,19 @@ class SerienStreamProvider : MainAPI() {
         val weight = langPriority(label)
         val prefix = langLabel(label)
         collected.forEach { link ->
-            val named = if (prefix.isBlank()) link else newExtractorLink(
-                link.source, "$prefix · ${link.name}", link.url, link.type
+            // Some extractor links carry the resolution only in their name ("Voe 712p") and
+            // leave quality unset, which would sort them as if unknown. Recover it from the
+            // name in that case. Adaptive playlists and bare MP4 links legitimately have no
+            // resolution — those stay unknown.
+            val quality = if (link.quality > 0) link.quality else getQualityFromName(link.name)
+            val named = newExtractorLink(
+                link.source,
+                if (prefix.isBlank()) link.name else "$prefix · ${link.name}",
+                link.url,
+                link.type,
             ) {
                 this.referer = link.referer
-                this.quality = link.quality
+                this.quality = quality
                 this.headers = link.headers
                 this.extractorData = link.extractorData
             }
