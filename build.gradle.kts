@@ -44,6 +44,13 @@ subprojects {
     android {
         namespace = "com.example"
 
+        // Shared provider code lives in a plain source folder instead of its own Gradle
+        // module. Every .cs3 is a standalone dex, so the code has to be compiled into each
+        // plugin regardless, and a real module would additionally make the cloudstream
+        // plugin emit a junk .cs3 for it.
+        sourceSets.getByName("main").java.srcDir("$rootDir/common/src/main/kotlin")
+        sourceSets.getByName("test").java.srcDir("$rootDir/common/src/test/kotlin")
+
         defaultConfig {
             minSdk = 21
             compileSdkVersion(35)
@@ -83,6 +90,12 @@ subprojects {
         // IMPORTANT: Do not bump Jackson above 2.13.1, as newer versions will
         // break compatibility on older Android devices.
         implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1") // JSON Parser
+
+        // Selector rot is this repo's main failure mode and a green compile says nothing
+        // about it. The parsers under common/.../parse are deliberately free of cloudstream
+        // types so they can be exercised on the JVM against checked-in page fixtures.
+        val testImplementation by configurations
+        testImplementation(kotlin("test"))
     }
 }
 

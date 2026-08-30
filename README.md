@@ -7,9 +7,9 @@ CloudStream-Plugins (`.cs3`) für deutschsprachige Streaming-Anbieter. Basiert a
 
 | Provider | Ordner | Typ | Status |
 |----------|--------|-----|--------|
-| AniWorld (`aniworld.to`) | `AniWorld/` | Anime (Sub & Dub) | ✅ fertig (v12), auf TV getestet |
-| SerienStream (`serienstream.to` / `s.to`) | `SerienStream/` | Serien | 🧪 v2, auf TV noch ungetestet |
-| Filmo (`filmo.to`) | `Filmo/` | Filme | 🧪 v1, auf TV noch ungetestet |
+| AniWorld (`aniworld.to`) | `AniWorld/` | Anime (Sub & Dub) | ✅ v14, auf TV getestet |
+| SerienStream (`serienstream.to` / `s.to`) | `SerienStream/` | Serien | 🧪 v6, auf TV noch ungetestet |
+| Filmo (`filmo.to`) | `Filmo/` | Filme | 🧪 v4, auf TV noch ungetestet |
 | bs.to (BurningSeries) | – | Serien/Anime | ⏳ geplant |
 | anime-loads.org | – | Anime | ⏳ geplant |
 | kinox / movie4k / movie2k / megakino | – | Filme | ⏳ geplant |
@@ -37,6 +37,39 @@ https://raw.githubusercontent.com/<USER>/<REPO>/builds/plugins.json
 ```
 
 Danach in der Repo-Liste die einzelnen Provider installieren.
+
+## Aufbau des Repos
+
+```
+common/src/main/kotlin/    von allen Providern geteilter Code (kein Gradle-Modul, s. u.)
+  ├─ Net.kt                HTTP-Defaults, Redirect-Auflösung
+  ├─ SourceLanguage.kt     Dub / Ger-Sub / Eng-Sub
+  ├─ SourceCollector.kt    die gesamte loadLinks-Pipeline
+  └─ parse/                Selektoren, frei von CloudStream-Typen → JVM-testbar
+<Provider>/src/main/       der eigentliche Provider (dünn: mappt Parser-Ergebnisse)
+<Provider>/src/test/       Tests + Seiten-Fixtures
+```
+
+Der gemeinsame Code liegt bewusst in einem Source-Ordner statt in einem eigenen Gradle-Modul:
+jede `.cs3` ist ein eigenständiges Dex, der Code muss also ohnehin in jedes Plugin — ein Modul
+würde zusätzlich eine leere `.cs3` erzeugen.
+
+## Tests
+
+```bash
+./gradlew testDebugUnitTest                                   # offline, gegen Fixtures
+SMOKE=1 ./gradlew testDebugUnitTest --tests '*LiveTest'       # gegen die echten Seiten
+```
+
+Ein grüner Build heißt nur „kompiliert". Die Fixture-Tests prüfen, ob die Selektoren noch
+greifen — sie laufen in CI vor dem Build, und ein nächtlicher Workflow
+(`selector-smoke.yml`) prüft dasselbe gegen die Live-Seiten und meldet einen Site-Umbau als
+Issue. Ob Streams tatsächlich abspielen, testet weiterhin nur der Fernseher.
+
+## Wenn eine Site umzieht
+
+Alle Provider erlauben einen URL-Override: in CloudStream unter den Provider-Einstellungen die
+neue Domain eintragen — ohne auf einen neuen Build zu warten.
 
 ## Lokaler Aufbau eines Providers
 

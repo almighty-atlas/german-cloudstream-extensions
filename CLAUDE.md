@@ -56,6 +56,8 @@ Ab Kotlin 2.4 wird sie zum Fehler; dann die Annotations-Dependency ergänzen.
   erzeugen keine `.cs3` und bringen in diesem Solo-Repo nichts.
 - **Version in `<Provider>/build.gradle.kts` bei jeder Änderung hochzählen** — sonst bietet die
   App kein Update an.
+- **Vor dem Push `./gradlew testDebugUnitTest` laufen lassen** — fängt Selektor-Brüche, die
+  ein reiner Compile nicht sieht.
 - Build dauert ~1,5–3 min. Status abfragen:
   ```
   curl -s "https://api.github.com/repos/almighty-atlas/german-cloudstream-extensions/actions/runs?per_page=1"
@@ -89,9 +91,9 @@ Bei neuen Providern gleich so anlegen.
 `MainAPI.name` ist der `apiName`, unter dem Lesezeichen und Watch-Fortschritt gespeichert werden.
 **Nie ohne Rückfrage ändern** — eine Umbenennung entkoppelt vorhandene Nutzerdaten.
 
-## loadLinks: so und nicht anders
+## loadLinks: `SourceCollector` benutzen, nicht selbst bauen
 
-Diese vier Punkte sind die Ursache der meisten „Link-Fehler". Bei jedem Provider einhalten:
+Diese vier Punkte sind die Ursache der meisten „Link-Fehler":
 
 1. **Referer ist der Site-Root** (`"$mainUrl/"`), nicht die Episoden-URL. Hoster (voe, filemoon,
    vidmoly) liefern bei falschem Referer einen Anti-Bot-Stub statt Video.
@@ -102,8 +104,26 @@ Diese vier Punkte sind die Ursache der meisten „Link-Fehler". Bei jedem Provid
 4. **Kein `runBlocking` im Extractor-Callback** (kann auf dem Main-Dispatcher hängen). Links erst
    sammeln, danach außerhalb mit `newExtractorLink` neu bauen.
 
-`SerienStream/src/main/kotlin/com/germanstreams/SerienStreamProvider.kt` setzt alle vier um und
-taugt als Vorlage.
+**Sie stehen jetzt im Code:** `common/src/main/kotlin/com/germanstreams/common/SourceCollector.kt`
+erzwingt alle vier. Ein neuer Provider sammelt mit `addRedirect(...)` / `addTarget(...)` und gibt
+mit `emitTo(callback)` zurück — dann kann keine der Regeln mehr vergessen werden. Kein Provider
+soll die Pipeline nochmal von Hand schreiben.
+
+`SerienStreamProvider.kt` ist die kürzeste Vorlage.
+
+## Gemeinsamer Code und Tests
+
+- Geteilter Code liegt in `common/src/main/kotlin/` und wird per `sourceSets` in **jeden**
+  Provider einkompiliert (kein Gradle-Modul — das erzeugte sonst eine Junk-`.cs3`).
+- **Selektoren gehören in `common/.../parse/*Parser.kt` und dürfen keine CloudStream-Typen
+  anfassen.** Nur so laufen sie als JVM-Unit-Tests. Sie liefern rohe hrefs; `fixUrl` macht der
+  Provider.
+- **Zu jedem Selektor gehört ein Test.** Fixture unter `<Provider>/src/test/resources/fixtures/`
+  ablegen (getrimmt: Scripts, Styles, SVG-Pfade, `srcset` auf einen Kandidaten kürzen), Test
+  daneben. `./gradlew testDebugUnitTest` läuft offline, `SMOKE=1 ./gradlew ... --tests '*LiveTest'`
+  prüft gegen die echten Seiten.
+- CI lässt die Fixture-Tests **vor** dem Build laufen; ein roter Test lässt die alten `.cs3`
+  stehen, statt sie durch nichts zu ersetzen.
 
 ## Kotlin-Fallen, die hier schon zugeschlagen haben
 

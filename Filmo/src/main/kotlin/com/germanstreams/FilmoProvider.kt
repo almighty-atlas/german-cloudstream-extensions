@@ -1,13 +1,16 @@
 package com.germanstreams
 
+import com.germanstreams.common.Net
+import com.germanstreams.common.SourceCollector
+import com.germanstreams.common.SourceLanguage
+import com.germanstreams.common.parse.FilmoParser
+import com.germanstreams.common.parse.ParsedCard
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.getQualityFromName
-import com.lagradost.cloudstream3.utils.loadExtractor
-import com.lagradost.cloudstream3.utils.newExtractorLink
-import org.jsoup.nodes.Element
+import org.jsoup.nodes.Document
 
 class FilmoProvider : MainAPI() {
     override var mainUrl = "https://filmo.to"
@@ -17,98 +20,83 @@ class FilmoProvider : MainAPI() {
     override val hasQuickSearch = true
     override val supportedTypes = setOf(TvType.Movie)
 
-    // The site is picky about the client; a desktop UA keeps the markup consistent.
-    private val headers = mapOf(
-        "User-Agent" to "Mozilla/5.0 (X11; Linux x86_64; rv:152.0) Gecko/20100101 Firefox/152.0"
-    )
+    /**
+     * Lets the user point the provider at a new domain from the app's provider settings.
+     *
+     * These sites move — s.to became serienstream.to — and until now that meant the plugin
+     * was dead until a new build shipped. CloudStream's own override covers exactly this, so
+     * it is enabled explicitly rather than left to the default.
+     */
+    override var canBeOverridden = true
 
     override val mainPage = mainPageOf(
         "$mainUrl/popular" to "Beliebt bei Filmo",
+        "$mainUrl/movies" to "Alle Filme",
+        "$mainUrl/collections/top-kinofilme" to "Top Kinofilme",
+        "$mainUrl/collections/top-rated-movies-on-imdb" to "Top-Bewertungen (IMDb)",
+        "$mainUrl/collections/action-spannung-grusel" to "Action, Spannung & Grusel",
+        "$mainUrl/collections/kids-and-family-movies" to "Kinder & Familie",
     )
 
+    private suspend fun document(url: String, referer: String = "$mainUrl/"): Document =
+        app.get(url, referer = referer, headers = Net.browserHeaders, timeout = Net.TIMEOUT).document
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        // The catalog page is not paginated.
-        if (page > 1) return newHomePageResponse(request.name, emptyList(), hasNext = false)
-        val doc = app.get(request.data, headers = headers).document
-
-        val sections = doc.select("section.popular-spotlight, div.video-row").mapNotNull { section ->
-            val header = section.selectFirst("h3")?.ownText()?.ifBlank { null }
-                ?: section.selectFirst("h3")?.text()?.ifBlank { null }
-                ?: return@mapNotNull null
-            val items = section.select(".popular-spotlight-card__link, a.video-card")
-                .mapNotNull { it.toSearchResult() }
-                .distinctBy { it.url }
-            HomePageList(header, items).takeIf { items.isNotEmpty() }
+        // /popular is a curated single page of titled rows; the listings paginate via ?page=N.
+        val paginated = "/popular" !in request.data
+        if (page > 1 && !paginated) {
+            return newHomePageResponse(request.name, emptyList(), hasNext = false)
         }
-        if (sections.isNotEmpty()) return newHomePageResponse(sections, hasNext = false)
 
-        val flat = doc.select(".popular-spotlight-card__link, a.video-card")
-            .mapNotNull { it.toSearchResult() }
-            .distinctBy { it.url }
-        return newHomePageResponse(request.name, flat, hasNext = false)
+        val url = if (paginated && page > 1) "${request.data}?page=$page" else request.data
+        val doc = document(url)
+
+        if (!paginated) {
+            val sections = FilmoParser.sections(doc)
+                .map { HomePageList(it.title, it.cards.map { card -> card.toSearchResponse() }) }
+            if (sections.isNotEmpty()) return newHomePageResponse(sections, hasNext = false)
+        }
+
+        val items = FilmoParser.cards(doc).map { it.toSearchResponse() }
+        val lastPage = FilmoParser.lastPage(doc)
+        val hasNext = paginated && items.isNotEmpty() && (lastPage == null || page < lastPage)
+        return newHomePageResponse(request.name, items, hasNext = hasNext)
     }
 
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val doc = app.get("$mainUrl/search", params = mapOf("q" to query), headers = headers).document
-        return doc.select("section.search-top-results article > a, a.movie-poster-grid-card")
-            .mapNotNull { it.toSearchResult() }
-            .distinctBy { it.url }
+        val doc = app.get(
+            "$mainUrl/search",
+            params = mapOf("q" to query),
+            headers = Net.browserHeaders,
+            timeout = Net.TIMEOUT,
+        ).document
+        return FilmoParser.searchResults(doc).map { it.toSearchResponse() }
     }
 
-    private fun Element.toSearchResult(): SearchResponse? {
-        val rawHref = if (tagName() == "a") attr("href") else selectFirst("a[href]")?.attr("href")
-        val href = fixUrlNull(rawHref?.ifBlank { null }) ?: return null
-
-        // Card layouts differ: spotlight cards carry the title in an <h4>, grid cards in the
-        // image alt text, and search hits in a "__title" element.
-        val img = selectFirst("img")
-        val title = selectFirst("[class*=__title]")?.text()?.ifBlank { null }
-            ?: selectFirst("h4")?.text()?.ifBlank { null }
-            ?: img?.attr("alt")?.ifBlank { null }
-            ?: return null
-
-        val poster = fixUrlNull(
-            selectFirst(".ft-packshot img, img")?.let { it.attr("src").ifBlank { it.attr("data-src") } }
-        )
-        return newMovieSearchResponse(title, href, TvType.Movie) {
-            this.posterUrl = poster
+    private fun ParsedCard.toSearchResponse(): SearchResponse =
+        newMovieSearchResponse(title, fixUrl(href), TvType.Movie) {
+            this.posterUrl = fixUrlNull(poster)
         }
-    }
 
     override suspend fun load(url: String): LoadResponse? {
-        val doc = app.get(url, headers = headers).document
+        val doc = document(url)
+        val meta = FilmoParser.meta(doc) ?: return null
 
-        val title = doc.selectFirst(".primary-container h1")?.text()?.ifBlank { null }
-            ?: doc.selectFirst("h1")?.text()?.ifBlank { null }
-            ?: return null
-
-        // Metadata is a list of <dl> definition pairs keyed by a German label.
-        val details = doc.select("div.details-group dl").mapNotNull { dl ->
-            val key = dl.selectFirst("dt")?.text()?.trim()?.ifBlank { null } ?: return@mapNotNull null
-            val value = dl.selectFirst("dd")?.text()?.trim()?.ifBlank { null } ?: return@mapNotNull null
-            key to value
-        }.toMap()
-
-        return newMovieLoadResponse(title, url, TvType.Movie, url) {
-            this.plot = doc.selectFirst("p.movie-detail-synopsis")?.text()?.ifBlank { null }
-            this.posterUrl = fixUrlNull(doc.selectFirst("img.ft-packshot-meta")?.attr("src"))
-            this.year = details["Erscheinungsdatum"]?.take(4)?.toIntOrNull()
-            this.duration = details["Laufzeit"]?.takeWhile { it.isDigit() }?.toIntOrNull()
-            this.tags = details["Genres"]?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }
-            addActors(details["Darsteller"]?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() })
+        return newMovieLoadResponse(meta.title, url, TvType.Movie, url) {
+            this.posterUrl = fixUrlNull(meta.poster)
+            this.plot = meta.plot
+            this.year = meta.year
+            this.duration = meta.durationMinutes
+            this.tags = meta.tags
+            // The site states an IMDb-style score that CloudStream can render on the card.
+            this.score = meta.rating?.let { Score.from10(it) }
+            this.recommendations = meta.recommendations.map { it.toSearchResponse() }
+            addActors(meta.actors.map { Actor(it.name, fixUrlNull(it.image)) })
+            addTrailer(meta.trailer)
         }
     }
-
-    /**
-     * One host yields several links that differ by variant, not by quality: a bare name is the
-     * adaptive master playlist, others append the resolution or the container ("Voe MP4").
-     * Without this they would all render under the same chip label and be indistinguishable.
-     */
-    private fun variantOf(link: ExtractorLink): String =
-        link.name.removePrefix(link.source).trim().trimStart('-', '·', '|', ':').trim()
-            .ifBlank { "Auto" } // adaptive playlist: quality is chosen at playback time
 
     override suspend fun loadLinks(
         data: String,
@@ -116,62 +104,30 @@ class FilmoProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit,
     ): Boolean {
-        // The movie page hands out the CSRF cookie that /n requires, so it has to be fetched
+        // The movie page hands out the XSRF cookie that /n requires, so it has to be fetched
         // first and its cookies carried through every later call.
-        val page = app.get(data, headers = headers)
+        val page = app.get(data, headers = Net.browserHeaders, timeout = Net.TIMEOUT)
         val cookies = page.cookies
         // Laravel URL-encodes the cookie; only the base64 padding is affected in practice.
         val xsrf = cookies["XSRF-TOKEN"]?.replace("%3D", "=")
 
-        val chips = page.document.select(".provider-chip[data-p]")
+        val chips = FilmoParser.providerChips(page.document)
         if (chips.isEmpty()) return false
 
-        val sources = java.util.Collections.synchronizedList(mutableListOf<ExtractorLink>())
-
+        val collector = SourceCollector(mainUrl)
         chips.amap { chip ->
-            val payload = chip.attr("data-p").ifBlank { return@amap }
-            // The chip text reads like "VOE WEB-DL 720p" — host, release and quality in one,
-            // which is more informative than the extractor's own name.
-            val label = chip.text().replace(Regex("\\s+"), " ").trim()
-
-            val target = resolveTarget(payload, xsrf, cookies, data) ?: return@amap
-
-            val collected = mutableListOf<ExtractorLink>()
-            runCatching { loadExtractor(target, "$mainUrl/", subtitleCallback) { collected.add(it) } }
-            collected.forEach { link ->
-                // The chip label states the quality ("VOE WEB-DL 720p") even when the
-                // extractor leaves it unset, so fall back to it before the link's own name.
-                val quality = when {
-                    link.quality > 0 -> link.quality
-                    getQualityFromName(label) > 0 -> getQualityFromName(label)
-                    else -> getQualityFromName(link.name)
-                }
-                // The chip label already names host and release; only append the variant
-                // when it adds something the label does not already say.
-                val variant = variantOf(link)
-                val display = when {
-                    label.isBlank() -> listOfNotNull(link.source.ifBlank { null }, variant)
-                        .joinToString(" · ")
-                    label.contains(variant, ignoreCase = true) -> label
-                    else -> "$label · $variant"
-                }
-                val named = newExtractorLink(
-                    link.source,
-                    display,
-                    link.url,
-                    link.type,
-                ) {
-                    this.referer = link.referer
-                    this.quality = quality
-                    this.headers = link.headers
-                    this.extractorData = link.extractorData
-                }
-                sources.add(named)
-            }
+            val target = resolveTarget(chip.payload, xsrf, cookies, data) ?: return@amap
+            collector.addTarget(
+                target = target,
+                // The chips name the release ("VOE WEB-DL 720p") and sometimes the audio
+                // track with it; anything unrecognised stays Unknown rather than guessing.
+                language = SourceLanguage.fromLabel(chip.caption),
+                captionOverride = chip.caption,
+                subtitleCallback = subtitleCallback,
+            )
         }
 
-        sources.sortedByDescending { it.quality }.forEach { callback(it) }
-        return sources.isNotEmpty()
+        return collector.emitTo(callback)
     }
 
     /**
@@ -189,7 +145,7 @@ class FilmoProvider : MainAPI() {
         cookies: Map<String, String>,
         referer: String,
     ): String? = runCatching {
-        val postHeaders = headers + mapOf(
+        val postHeaders = Net.browserHeaders + mapOf(
             "Referer" to referer,
             "Content-Type" to "application/json",
             "X-Requested-With" to "XMLHttpRequest",
@@ -200,21 +156,21 @@ class FilmoProvider : MainAPI() {
             json = mapOf("p" to payload),
             cookies = cookies,
             headers = postHeaders,
+            timeout = Net.TIMEOUT,
         ).text
         val slug = tryParseJson<SlugResponse>(slugRes)?.x?.ifBlank { null } ?: return@runCatching null
 
         val res = app.get(
             "$mainUrl/n/$slug",
             cookies = cookies,
-            headers = headers + mapOf("Referer" to referer),
+            headers = Net.browserHeaders + mapOf("Referer" to referer),
             allowRedirects = false,
+            timeout = Net.TIMEOUT,
         )
 
-        res.headers["location"]?.ifBlank { null }
-            // No redirect: pull the outbound link out of the interstitial page.
-            ?: res.document.select("a[href]")
-                .map { it.attr("href") }
-                .firstOrNull { it.startsWith("http") && !it.contains("filmo.to") }
+        res.headers["location"]?.ifBlank { null }?.let { return@runCatching Net.absolutize(it, mainUrl) }
+        // No redirect: the response is an interstitial that links out to the host.
+        FilmoParser.interstitialTarget(res.document, siteHost = "filmo.to")
     }.getOrNull()
 
     private data class SlugResponse(val x: String? = null)
