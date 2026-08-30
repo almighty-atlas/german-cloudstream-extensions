@@ -4,6 +4,7 @@ import com.germanstreams.common.LiveFetch
 import com.germanstreams.common.parse.FilmoParser
 import org.jsoup.Jsoup
 import kotlin.test.Test
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -47,9 +48,9 @@ class FilmoLiveTest {
         if (!LiveFetch.enabled) return
         val doc = Jsoup.parse(LiveFetch.html("$mainUrl/movies/oppenheimer"), "$mainUrl/")
 
-        val meta = FilmoParser.meta(doc)
-        assertTrue(meta != null && meta.title.isNotBlank(), "detail metadata is stale")
-        assertTrue(meta!!.year != null, "release date is stale")
+        val meta = assertNotNull(FilmoParser.meta(doc), "detail metadata is stale")
+        assertTrue(meta.title.isNotBlank(), "the title is stale")
+        assertTrue(meta.year != null, "release date is stale")
         assertTrue(meta.rating != null, "the rating line is stale")
         assertTrue(meta.recommendations.isNotEmpty(), "'Verwandte Filme' is stale")
 
