@@ -64,7 +64,12 @@ nichts. Deshalb zwei Stufen:
 - **Live-Smoke-Test** (`*LiveTest.kt`, nur mit `SMOKE=1`) zieht die echten Seiten und prüft, ob
   die Selektoren dort noch greifen. Läuft nächtlich über `.github/workflows/selector-smoke.yml`
   und öffnet bei Bruch ein Issue mit Label `selector-rot` (ein Issue pro Ausfall, danach nur
-  noch Kommentare).
+  noch Kommentare). Ist der Lauf wieder grün, schließt der Workflow das Issue selbst.
+- **Ein roter Smoke-Test heißt nicht automatisch „Selektor kaputt".** Der Workflow unterscheidet
+  seit dem Fehlalarm vom 2026-09-03/07 zwei Ausgänge: nur wenn ein Test-Report tatsächlich einen
+  Fehlschlag meldet (`failures=`/`errors=` in `build/test-results/testDebugUnitTest/*.xml`), gilt
+  das als `selectors` und erzeugt ein Issue. Stirbt Gradle vorher, ist es `infra` — der Job wird
+  rot, aber ohne Issue, weil der Lauf über die Sites gar nichts aussagt.
 
 Wenn eine Site umgebaut wird, **sollen** diese Tests rot werden: Fixture neu ziehen, Selektoren
 nachziehen, Version hochzählen.
@@ -82,6 +87,12 @@ versehentliches Refactoring, nicht gegen ein Redesign. Das ist im Test auch so d
   receiver-call (`obj.toJson()`), not `toJson(obj)`.
 - `ExtractorLink` is an `open class`, `name` is a `val`, no `copy()` → rebuild via
   `newExtractorLink(source, name, url, type) { ... }` (suspend).
+- **jitpack serves `com.github.recloudstream:gradle:-SNAPSHOT` from an on-demand build.** While it
+  rebuilds, pom or jar answer 404 and the whole classpath fails to resolve — that is what killed
+  the smoke runs on 2026-09-03 (`Could not find gradle--SNAPSHOT.jar`) and 2026-09-07 (`Could not
+  find com.github.recloudstream.gradle:gradle:-SNAPSHOT`), both before any test ran. Gradle caches
+  the miss, so a retry only helps with `--refresh-dependencies`; the smoke workflow now does that
+  once before giving up.
 
 ## CloudStream behaviour learned
 

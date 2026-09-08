@@ -7,6 +7,10 @@ name: Selector smoke test
 # aniworld.to is deliberately not covered — it answers 403 to every request from a CI runner
 # (DDoS-Guard, no solvable JS challenge), so any check against it would only ever report the
 # bot filter.
+#
+# A non-zero gradle exit is not by itself a selector break: when jitpack is mid-rebuild of the
+# cloudstream plugin snapshot, gradle dies before a single test runs. Those two outcomes are
+# told apart below and only a real test failure opens an issue.
 
 on:
   schedule:
@@ -44,11 +48,47 @@ jobs:
         run: |
           chmod +x gradlew
           set +e
-          # --rerun-tasks: the inputs never change, so gradle would otherwise call this
-          # up-to-date and skip the network entirely.
-          ./gradlew :SerienStream:testDebugUnitTest :Filmo:testDebugUnitTest \
-            --tests '*LiveTest' --rerun-tasks --stacktrace 2>&1 | tee smoke.log
-          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          # Stale results would make the verdict below read a previous run's tests.
+          rm -rf ./*/build/test-results
+
+          run_smoke() {
+            # --rerun-tasks: the inputs never change, so gradle would otherwise call this
+            # up-to-date and skip the network entirely.
+            ./gradlew :SerienStream:testDebugUnitTest :Filmo:testDebugUnitTest \
+              --tests '*LiveTest' --rerun-tasks --stacktrace "$@" 2>&1 | tee smoke.log
+            return "${PIPESTATUS[0]}"
+          }
+
+          run_smoke
+          status=$?
+
+          # jitpack builds com.github.recloudstream:gradle:-SNAPSHOT on demand and serves 404s
+          # for pom or jar while it does. Gradle caches that miss, so the retry has to refresh.
+          if [ "$status" -ne 0 ] && \
+             grep -qE "Could not (find|resolve).*(recloudstream|configuration 'classpath')" smoke.log; then
+            echo "Classpath did not resolve — retrying once with fresh dependencies."
+            sleep 60
+            run_smoke --refresh-dependencies
+            status=$?
+          fi
+
+          # Which of the two failures was it? Only a reported test failure means a selector
+          # stopped matching; anything that dies earlier says nothing about the live sites.
+          results=$(find . -path '*/build/test-results/testDebugUnitTest/*.xml' 2>/dev/null)
+          if [ -n "$results" ]; then
+            broken=$(grep -lE '<testsuite[^>]+(failures="[1-9]|errors="[1-9])' $results | wc -l)
+          else
+            broken=0
+          fi
+
+          if [ "$status" -eq 0 ]; then
+            verdict=pass
+          elif [ "$broken" -gt 0 ]; then
+            verdict=selectors
+          else
+            verdict=infra
+          fi
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
           exit 0
 
       - name: Summarise
@@ -56,18 +96,29 @@ jobs:
         run: |
           {
             echo "### Selector smoke test"
-            if [ "${{ steps.smoke.outputs.exit }}" = "0" ]; then
-              echo "All live selectors still match."
-            else
-              echo "A selector stopped matching. Failing assertions:"
-              echo '```'
-              grep -E "FAILED|stale|dead|parsed to nothing" smoke.log | head -40
-              echo '```'
-            fi
+            case "${{ steps.smoke.outputs.verdict }}" in
+              pass)
+                echo "All live selectors still match."
+                ;;
+              selectors)
+                echo "A selector stopped matching. Failing assertions:"
+                echo '```'
+                grep -E "FAILED|stale|dead|parsed to nothing" smoke.log | head -40
+                echo '```'
+                ;;
+              *)
+                echo "The build never got as far as running a test, so this run says **nothing**"
+                echo "about the live selectors. Usually jitpack rebuilding the cloudstream plugin"
+                echo "snapshot; it clears up on its own. Gradle's complaint:"
+                echo '```'
+                grep -A 4 "What went wrong" smoke.log | head -20
+                echo '```'
+                ;;
+            esac
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Open an issue when a selector broke
-        if: steps.smoke.outputs.exit != '0'
+        if: steps.smoke.outputs.verdict == 'selectors'
         uses: actions/github-script@v7
         with:
           script: |
@@ -109,6 +160,35 @@ jobs:
               });
             }
 
+      - name: Close the issue once the selectors match again
+        if: steps.smoke.outputs.verdict == 'pass'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'selector-rot',
+            });
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
+              `/actions/runs/${context.runId}`;
+            for (const issue of existing.data) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `Selectors match again. Run: ${run}`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+                state_reason: 'completed',
+              });
+            }
+
       - name: Fail the job
-        if: steps.smoke.outputs.exit != '0'
+        if: steps.smoke.outputs.verdict != 'pass'
         run: exit 1
