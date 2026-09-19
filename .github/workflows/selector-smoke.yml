@@ -27,16 +27,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -103,7 +101,7 @@ jobs:
               selectors)
                 echo "A selector stopped matching. Failing assertions:"
                 echo '```'
-                grep -E "FAILED|stale|dead|parsed to nothing" smoke.log | head -40
+                if [ -f smoke.log ]; then grep -E "FAILED|stale|dead|parsed to nothing" smoke.log | head -40 || true; else echo "smoke.log was not created."; fi
                 echo '```'
                 ;;
               *)
@@ -111,7 +109,7 @@ jobs:
                 echo "about the live selectors. Usually jitpack rebuilding the cloudstream plugin"
                 echo "snapshot; it clears up on its own. Gradle's complaint:"
                 echo '```'
-                grep -A 4 "What went wrong" smoke.log | head -20
+                if [ -f smoke.log ]; then grep -A 4 "What went wrong" smoke.log | head -20 || true; else echo "smoke.log was not created; an earlier setup step failed."; fi
                 echo '```'
                 ;;
             esac
