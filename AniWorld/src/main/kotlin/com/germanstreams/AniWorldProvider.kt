@@ -124,7 +124,7 @@ class AniWorldProvider : MainAPI() {
 
         val episodes = refs.map { (season, ep) ->
             val epUrl = fixUrl(ep.href)
-            val hasDub = languages[epUrl]?.contains(SourceLanguage.GermanDub) == true
+            val hasDub = languages.perEpisode[epUrl]?.contains(SourceLanguage.GermanDub) == true
             newEpisode(epUrl) {
                 this.name = listOfNotNull(ep.title?.ifBlank { null }, "🇩🇪".takeIf { hasDub })
                     .joinToString(" ").ifBlank { null }
@@ -135,10 +135,8 @@ class AniWorldProvider : MainAPI() {
 
         // Flag whole seasons that contain at least one German-dub episode. With sampling this
         // is the level the data is actually accurate at, so it is always filled in.
-        val seasonNames = refs.groupBy { it.first }.toSortedMap().map { (season, eps) ->
-            val dub = eps.any {
-                languages[fixUrl(it.second.href)]?.contains(SourceLanguage.GermanDub) == true
-            }
+        val seasonNames = refs.groupBy { it.first }.toSortedMap().map { (season, _) ->
+            val dub = season in languages.dubbedSeasons
             val label = if (season == 0) "Filme" else "Staffel $season"
             SeasonData(season, if (dub) "$label 🇩🇪" else label)
         }
@@ -159,22 +157,25 @@ class AniWorldProvider : MainAPI() {
      *
      * Anything already memoised is free, so re-opening a series costs nothing. For what is
      * left: a series that fits the budget is resolved exactly; a longer one is sampled per
-     * season, and the sampled result is applied to that whole season so the season label
-     * still says whether a dub exists.
+     * season. Samples affect the season label, while episode labels require direct evidence.
      */
+    private data class LanguageResolution(
+        val perEpisode: Map<String, Set<SourceLanguage>>,
+        val dubbedSeasons: Set<Int>,
+    )
+
     private suspend fun resolveLanguages(
         refs: List<Pair<Int, ParsedEpisode>>,
-    ): Map<String, Set<SourceLanguage>> {
+    ): LanguageResolution {
         val urls = refs.map { fixUrl(it.second.href) }
         val known = urls.mapNotNull { url -> EpisodeLanguageCache[url]?.let { url to it } }.toMap()
         val missing = urls.filter { it !in known }
-        if (missing.isEmpty()) return known
-
-        if (missing.size <= probeBudget) {
-            return known + probe(missing)
+        if (missing.isEmpty() || missing.size <= probeBudget) {
+            val exact = known + probe(missing)
+            return LanguageResolution(exact, dubbedSeasons(refs, exact))
         }
 
-        // Over budget: sample evenly within each season and spread the answer across it.
+        // Over budget: sample evenly within each season.
         val bySeason = refs.groupBy { it.first }
         val samples = bySeason.values.flatMap { seasonEps ->
             val seasonUrls = seasonEps.map { fixUrl(it.second.href) }.filter { it !in known }
@@ -184,19 +185,19 @@ class AniWorldProvider : MainAPI() {
         }
 
         val probed = probe(samples)
-        val perSeason = bySeason.mapValues { (_, seasonEps) ->
-            seasonEps.map { fixUrl(it.second.href) }
-                .mapNotNull { probed[it] ?: known[it] }
-                .flatten()
-                .toSet()
-        }
-
-        val spread = refs.associate { (season, ep) ->
-            val epUrl = fixUrl(ep.href)
-            epUrl to (known[epUrl] ?: probed[epUrl] ?: perSeason[season].orEmpty())
-        }
-        return spread
+        // A sample can justify a season badge, but not a badge on every untested episode.
+        val observed = known + probed
+        return LanguageResolution(observed, dubbedSeasons(refs, observed))
     }
+
+    private fun dubbedSeasons(
+        refs: List<Pair<Int, ParsedEpisode>>,
+        observed: Map<String, Set<SourceLanguage>>,
+    ): Set<Int> = refs.mapNotNull { (season, episode) ->
+        season.takeIf {
+            SourceLanguage.GermanDub in observed[fixUrl(episode.href)].orEmpty()
+        }
+    }.toSet()
 
     private suspend fun probe(urls: List<String>): Map<String, Set<SourceLanguage>> =
         urls.chunked(batchSize).flatMap { chunk ->

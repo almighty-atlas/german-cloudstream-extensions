@@ -1,5 +1,5 @@
 // Use an integer for version numbers
-version = 14
+version = 15
 
 cloudstream {
     description = "★ Eigene Version — AniWorld, Anime auf Deutsch (Sub & Dub)"
