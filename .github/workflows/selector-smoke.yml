@@ -70,18 +70,18 @@ jobs:
             status=$?
           fi
 
-          # Which of the two failures was it? Only a reported test failure means a selector
-          # stopped matching; anything that dies earlier says nothing about the live sites.
+          # A test can fail because the site changed OR because the request itself failed
+          # (DNS/TLS/403/429/5xx/timeout). Only parser assertion messages count as selector rot.
           results=$(find . -path '*/build/test-results/testDebugUnitTest/*.xml' 2>/dev/null)
           if [ -n "$results" ]; then
-            broken=$(grep -lE '<testsuite[^>]+(failures="[1-9]|errors="[1-9])' $results | wc -l)
+            selector_failures=$(grep -lE               'parsed to nothing|selectors are stale|metadata is stale|season nav is stale|episode rows are stale|dub markers are stale|link resolution is dead|play URLs no longer carry a token|grid is stale|pager is stale|rating line is stale|Verwandte Filme.*stale|provider chips'               $results | wc -l)
           else
-            broken=0
+            selector_failures=0
           fi
 
           if [ "$status" -eq 0 ]; then
             verdict=pass
-          elif [ "$broken" -gt 0 ]; then
+          elif [ "$selector_failures" -gt 0 ]; then
             verdict=selectors
           else
             verdict=infra
@@ -105,9 +105,9 @@ jobs:
                 echo '```'
                 ;;
               *)
-                echo "The build never got as far as running a test, so this run says **nothing**"
-                echo "about the live selectors. Usually jitpack rebuilding the cloudstream plugin"
-                echo "snapshot; it clears up on its own. Gradle's complaint:"
+                echo "No parser assertion proved that a selector is stale."
+                echo "This is usually a dependency problem or a live-site fetch failure"
+                echo "(DNS/TLS/403/429/5xx/timeout). Gradle's complaint:"
                 echo '```'
                 if [ -f smoke.log ]; then grep -A 4 "What went wrong" smoke.log | head -20 || true; else echo "smoke.log was not created; an earlier setup step failed."; fi
                 echo '```'
