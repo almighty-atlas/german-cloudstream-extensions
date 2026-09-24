@@ -137,4 +137,15 @@ class FilmoParserTest {
             FilmoParser.interstitialTarget(org.jsoup.Jsoup.parse(html), "filmo.to"),
         )
     }
+
+    @Test
+    fun `interstitial excludes the configured site domain and its subdomains`() {
+        val html = """<a href="https://mirror.example/help">Hilfe</a>
+            <a href="https://www.mirror.example/embed/help">Intern</a>
+            <a href="https://voe.sx/e/video">Video</a>"""
+        assertEquals(
+            "https://voe.sx/e/video",
+            FilmoParser.interstitialTarget(org.jsoup.Jsoup.parse(html), "mirror.example"),
+        )
+    }
 }

@@ -158,7 +158,12 @@ object FilmoParser {
 
     fun interstitialTarget(doc: Document, siteHost: String): String? {
         val links = doc.select("a[href]").map { it.attr("href").trim() }
-            .filter { it.startsWith("http") && !it.contains(siteHost, ignoreCase = true) }
+            .filter { link ->
+                val uri = runCatching { java.net.URI(link) }.getOrNull()
+                val host = uri?.host ?: return@filter false
+                (uri.scheme.equals("https", true) || uri.scheme.equals("http", true)) &&
+                    !host.equals(siteHost, true) && !host.endsWith(".$siteHost", true)
+            }
         return links.firstOrNull { link -> HOSTER_HINTS.any { it in link.lowercase() } }
             ?: links.firstOrNull { "/embed" in it.lowercase() || "/e/" in it.lowercase() }
     }

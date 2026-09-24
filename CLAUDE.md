@@ -62,11 +62,13 @@ Ab Kotlin 2.4 wird sie zum Fehler; dann die Annotations-Dependency ergänzen.
   ```
   curl -s "https://api.github.com/repos/almighty-atlas/german-cloudstream-extensions/actions/runs?per_page=1"
   ```
-- Ergebnis liegt auf dem `builds`-Branch:
+- Bei erfolgreichem Build liegen die Artefakte und das Log auf dem `builds`-Branch:
   ```
   git fetch origin builds && git ls-tree --name-only origin/builds
   git show origin/builds:build.log | grep '^e: '     # Kotlin-Fehler
   ```
+- Bei fehlgeschlagenem Build wird nichts veröffentlicht; die Fehlermeldung steht im
+  fehlgeschlagenen GitHub-Actions-Schritt.
 - **Ein grüner Build heißt nur „kompiliert".** Ob die Selektoren stimmen, testet der User auf
   seinem Android TV. Das nie als „funktioniert" melden.
 

@@ -170,7 +170,10 @@ class FilmoProvider : MainAPI() {
 
         res.headers["location"]?.ifBlank { null }?.let { return@runCatching Net.absolutize(it, mainUrl) }
         // No redirect: the response is an interstitial that links out to the host.
-        FilmoParser.interstitialTarget(res.document, siteHost = "filmo.to")
+        FilmoParser.interstitialTarget(
+            res.document,
+            siteHost = java.net.URI(mainUrl).host ?: return@runCatching null,
+        )
     }.getOrNull()
 
     private data class SlugResponse(val x: String? = null)

@@ -9,7 +9,7 @@ CloudStream-Plugins (`.cs3`) für deutschsprachige Streaming-Anbieter. Basiert a
 |----------|--------|-----|--------|
 | AniWorld (`aniworld.to`) | `AniWorld/` | Anime (Sub & Dub) | ✅ v14, auf TV getestet |
 | SerienStream (`serienstream.to` / `s.to`) | `SerienStream/` | Serien | 🧪 v6, auf TV noch ungetestet |
-| Filmo (`filmo.to`) | `Filmo/` | Filme | 🧪 v4, auf TV noch ungetestet |
+| Filmo (`filmo.to`) | `Filmo/` | Filme | 🧪 v5, auf TV noch ungetestet |
 | bs.to (BurningSeries) | – | Serien/Anime | ⏳ geplant |
 | anime-loads.org | – | Anime | ⏳ geplant |
 | kinox / movie4k / movie2k / megakino | – | Filme | ⏳ geplant |
@@ -33,7 +33,7 @@ Entwickler-Details + offene TODOs: siehe [`DEVNOTES.md`](DEVNOTES.md).
 Einstellungen → Erweiterungen → Repository hinzufügen → URL:
 
 ```
-https://raw.githubusercontent.com/<USER>/<REPO>/builds/plugins.json
+https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/main/repo.json
 ```
 
 Danach in der Repo-Liste die einzelnen Provider installieren.

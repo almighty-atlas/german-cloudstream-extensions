@@ -56,22 +56,29 @@ jobs:
           chmod +x gradlew
           ./gradlew testDebugUnitTest --stacktrace
 
-      - name: Clean old builds
-        run: rm -f $GITHUB_WORKSPACE/builds/*.cs3
-
       - name: Build Plugins
-        id: build
         run: |
           cd $GITHUB_WORKSPACE/src
-          set +e
-          # --continue: one provider failing to compile must not stop the others from
-          # building. Without it a broken new provider takes the working ones down with it,
-          # because the old .cs3 files were already deleted above.
+          set -o pipefail
           ./gradlew make makePluginsJson --continue --stacktrace 2>&1 | tee $GITHUB_WORKSPACE/builds/build.log
-          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-          cp **/build/*.cs3 $GITHUB_WORKSPACE/builds 2>/dev/null || true
-          cp build/plugins.json $GITHUB_WORKSPACE/builds 2>/dev/null || true
-          exit 0
+
+      - name: Verify and publish complete build
+        run: |
+          cd "$GITHUB_WORKSPACE/src"
+          # A successful Gradle exit alone does not prove every expected plugin was emitted.
+          artifacts_to_publish=()
+          for module in */build.gradle.kts; do
+            provider=${module%%/*}
+            mapfile -t artifacts < <(find "$provider/build" -maxdepth 1 -name '*.cs3' -type f)
+            if [ "${#artifacts[@]}" -ne 1 ] || [ ! -s "${artifacts[0]}" ]; then
+              echo "Expected exactly one non-empty .cs3 for $provider" >&2
+              exit 1
+            fi
+            artifacts_to_publish+=("${artifacts[0]}")
+          done
+          test -s build/plugins.json
+          rm -f "$GITHUB_WORKSPACE"/builds/*.cs3
+          cp "${artifacts_to_publish[@]}" build/plugins.json "$GITHUB_WORKSPACE/builds/"
 
       - name: Push builds
         run: |
@@ -81,9 +88,3 @@ jobs:
           git add -A
           git commit --amend -m "Build $GITHUB_SHA" || exit 0   # do not error if nothing to commit
           git push --force
-
-      - name: Fail if the build failed
-        if: steps.build.outputs.exit != '0'
-        run: |
-          echo "Gradle build failed (exit ${{ steps.build.outputs.exit }}). See build.log on the builds branch."
-          exit 1

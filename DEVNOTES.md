@@ -11,8 +11,8 @@ Working notes for developing these CloudStream provider plugins. Read this first
   the `builds` branch. Build takes ~2–3 min.
 - **Build status without the web UI:**
   - Runs: `https://api.github.com/repos/almighty-atlas/german-cloudstream-extensions/actions/runs?per_page=1`
-  - On failure, the workflow tees the gradle output to `build.log` on the `builds` branch
-    (`git fetch origin builds && git show origin/builds:build.log`). Grep for `^e: `.
+  - On failure, inspect the Build Plugins step in GitHub Actions. Failed builds are not
+    published to `builds`; their log remains in the failed workflow run.
 - **Install in app (Android TV):** Settings → Extensions → Add repository →
   `https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/main/repo.json`
 - **Updates:** bump `version` in each provider's `build.gradle.kts` on every change, else the app
@@ -57,19 +57,18 @@ Selektor-Rot ist der eigentliche Fehlermodus dieses Repos, und ein grüner Build
 nichts. Deshalb zwei Stufen:
 
 - **Fixture-Tests** (`*/src/test/`) laufen offline gegen eingecheckte Seiten-Captures unter
-  `*/src/test/resources/fixtures/`. Sie laufen in CI **vor** dem Löschen der alten `.cs3` —
-  ein roter Test lässt die bisher veröffentlichten Plugins also stehen, statt sie durch nichts
-  zu ersetzen. Captures sind getrimmt (Scripts, Styles, SVG-Geometrie, alle `srcset`-Kandidaten
+  `*/src/test/resources/fixtures/`. Erst nach Tests und vollständigem Build werden alle `.cs3`
+  veröffentlicht. Ein roter Lauf lässt die bisher veröffentlichten Plugins stehen.
+  Captures sind getrimmt (Scripts, Styles, SVG-Geometrie, alle `srcset`-Kandidaten
   bis auf den ersten); alles was ein Selektor anfasst, ist unverändert.
 - **Live-Smoke-Test** (`*LiveTest.kt`, nur mit `SMOKE=1`) zieht die echten Seiten und prüft, ob
   die Selektoren dort noch greifen. Läuft nächtlich über `.github/workflows/selector-smoke.yml`
   und öffnet bei Bruch ein Issue mit Label `selector-rot` (ein Issue pro Ausfall, danach nur
   noch Kommentare). Ist der Lauf wieder grün, schließt der Workflow das Issue selbst.
-- **Ein roter Smoke-Test heißt nicht automatisch „Selektor kaputt".** Der Workflow unterscheidet
-  seit dem Fehlalarm vom 2026-09-03/07 zwei Ausgänge: nur wenn ein Test-Report tatsächlich einen
-  Fehlschlag meldet (`failures=`/`errors=` in `build/test-results/testDebugUnitTest/*.xml`), gilt
-  das als `selectors` und erzeugt ein Issue. Stirbt Gradle vorher, ist es `infra` — der Job wird
-  rot, aber ohne Issue, weil der Lauf über die Sites gar nichts aussagt.
+- **Ein roter Smoke-Test heißt nicht automatisch „Selektor kaputt".** Nur passende
+  Parser-Assertions in den XML-Testberichten gelten als `selectors` und erzeugen ein Issue.
+  HTTP-, DNS- und TLS-Fehler sowie ein fehlgeschlagener Gradle-Start gelten als `infra` — der
+  Job wird rot, aber ohne Selector-Issue.
 
 Wenn eine Site umgebaut wird, **sollen** diese Tests rot werden: Fixture neu ziehen, Selektoren
 nachziehen, Version hochzählen.
