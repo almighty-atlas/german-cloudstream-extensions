@@ -24,7 +24,8 @@ object LiveFetch {
             instanceFollowRedirects = true
             connectTimeout = 30_000
             readTimeout = 30_000
-            setRequestProperty("User-Agent", Net.DESKTOP_UA)
+            setRequestProperty("User-Agent",
+                "Mozilla/5.0 (X11; Linux x86_64; rv:152.0) Gecko/20100101 Firefox/152.0")
             setRequestProperty("Accept-Language", "de-DE,de;q=0.9,en;q=0.8")
             setRequestProperty("Accept", "text/html,application/xhtml+xml")
         }
