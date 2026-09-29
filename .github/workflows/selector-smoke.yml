@@ -53,47 +53,27 @@ jobs:
         run: |
           chmod +x gradlew
           set +e
-          # Stale results would make the verdict below read a previous run's tests.
           rm -rf smoke/build/test-results
 
           run_smoke() {
-            # --rerun-tasks: the inputs never change, so gradle would otherwise call this
-            # up-to-date and skip the network entirely.
-            ./gradlew -p smoke test --tests '*LiveTest' --rerun-tasks --stacktrace "$@" 2>&1 | tee smoke.log
+            # Force live requests even when Gradle has cached the task outputs.
+            ./gradlew -p smoke :test --tests '*LiveTest' --rerun-tasks --stacktrace "$@" 2>&1 | tee smoke.log
             return "${PIPESTATUS[0]}"
           }
 
           run_smoke
           status=$?
 
-          # Maven repositories can have transient lookup failures. Gradle caches those,
-          # so the retry must refresh dependencies.
           if [ "$status" -ne 0 ] && \
-             grep -qE "Could not (find|resolve).*(recloudstream|configuration 'classpath')" smoke.log; then
-            echo "Classpath did not resolve — retrying once with fresh dependencies."
-            sleep 60
+             grep -qE "Could not (find|resolve)|Read timed out|Connection reset" smoke.log; then
+            echo "Dependency lookup failed — retrying with fresh dependencies."
+            sleep 15
+            rm -rf smoke/build/test-results
             run_smoke --refresh-dependencies
             status=$?
           fi
 
-          # A test can fail because the site changed OR because the request itself failed
-          # (DNS/TLS/403/429/5xx/timeout). Only parser assertion messages count as selector rot.
-          results=$(find smoke/build/test-results/test -name '*.xml' 2>/dev/null)
-          if [ -n "$results" ]; then
-            selector_failures=$(grep -lE               'parsed to nothing|selectors are stale|metadata is stale|season nav is stale|episode rows are stale|dub markers are stale|link resolution is dead|play URLs no longer carry a token|grid is stale|pager is stale|rating line is stale|Verwandte Filme.*stale|provider chips'               $results | wc -l)
-          else
-            selector_failures=0
-          fi
-
-          if [ "$status" -eq 0 ]; then
-            verdict=pass
-          elif [ "$selector_failures" -gt 0 ]; then
-            verdict=selectors
-          else
-            verdict=infra
-          fi
-          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
-          exit 0
+          python3 smoke/verify_live_results.py "$status" >> "$GITHUB_OUTPUT"
 
       - name: Summarise
         if: always()
@@ -192,6 +172,17 @@ jobs:
                 state_reason: 'completed',
               });
             }
+
+      - name: Upload failure diagnostics
+        if: steps.smoke.outputs.verdict != 'pass'
+        uses: actions/upload-artifact@v4
+        with:
+          name: selector-smoke-diagnostics
+          path: |
+            smoke.log
+            smoke/build/test-results/test/*.xml
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Fail the job
         if: steps.smoke.outputs.verdict != 'pass'
