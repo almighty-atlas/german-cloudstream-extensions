@@ -11,6 +11,10 @@ name: Selector smoke test
 # A non-zero Gradle exit is not by itself a selector break. Dependency resolution and
 # live-site fetch failures are distinguished from parser assertions below.
 
+concurrency:
+  group: selector-smoke-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
 on:
   push:
     paths:
