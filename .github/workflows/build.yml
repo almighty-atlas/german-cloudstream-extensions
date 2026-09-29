@@ -57,6 +57,17 @@ jobs:
             }
           done
 
+      - name: Checkout pinned Cloudstream Gradle plugin
+        uses: actions/checkout@v5
+        with:
+          repository: recloudstream/gradle
+          ref: cce1b8d84dc796b8da4a92a64cedfb046d1937b3
+          path: src/cloudstream-gradle
+          persist-credentials: false
+
+      - name: Prepare Cloudstream Gradle plugin
+        run: python3 "$GITHUB_WORKSPACE/src/scripts/prepare_cloudstream_gradle.py"
+
       - name: Build Plugins
         run: |
           cd $GITHUB_WORKSPACE/src
