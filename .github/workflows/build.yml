@@ -43,18 +43,19 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Runs before the old .cs3 files are removed, so a red test leaves the previously
-      # published plugins in place instead of replacing them with nothing.
-      #
-      # These are the parser tests: they check the selectors against checked-in page captures.
-      # A failure here means a site changed and the provider is about to stop working — the
-      # fix is to refresh the fixture and the selectors, not to skip the test. The live
-      # counterparts only run in the nightly smoke workflow.
-      - name: Run parser tests
+      # Fixture tests run as plain JVM modules and do not require the Cloudstream plugin.
+      # A failing parser cannot replace previously published .cs3 artifacts.
+      - name: Run parser fixture tests
         run: |
-          cd $GITHUB_WORKSPACE/src
+          cd "$GITHUB_WORKSPACE/src"
           chmod +x gradlew
-          ./gradlew testDebugUnitTest --stacktrace
+          ./gradlew -p smoke :AniWorld:test :Filmo:test :SerienStream:test --stacktrace
+          for module in AniWorld Filmo SerienStream; do
+            find "smoke/$module/build/test-results/test" -name '*.xml' -size +0c | grep -q . || {
+              echo "No test report for $module" >&2
+              exit 1
+            }
+          done
 
       - name: Build Plugins
         run: |
@@ -88,3 +89,15 @@ jobs:
           git add -A
           git commit --amend -m "Build $GITHUB_SHA" || exit 0   # do not error if nothing to commit
           git push --force
+
+      - name: Upload build failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-failure-diagnostics
+          path: |
+            src/smoke/*/build/test-results/test/*.xml
+            src/build/reports/**
+            builds/build.log
+          if-no-files-found: ignore
+          retention-days: 14
