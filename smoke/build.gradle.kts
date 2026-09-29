@@ -34,5 +34,6 @@ sourceSets {
 
 tasks.test {
     useJUnit()
+    doFirst { check(System.getenv("SMOKE") == "1") { "Set SMOKE=1 to run live tests" } }
     environment("SMOKE", System.getenv("SMOKE") ?: "")
 }
