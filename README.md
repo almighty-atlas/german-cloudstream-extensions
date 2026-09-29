@@ -54,17 +54,25 @@ Der gemeinsame Code liegt bewusst in einem Source-Ordner statt in einem eigenen 
 jede `.cs3` ist ein eigenständiges Dex, der Code muss also ohnehin in jedes Plugin — ein Modul
 würde zusätzlich eine leere `.cs3` erzeugen.
 
-## Tests
+## Tests und lokaler Build
 
 ```bash
-./gradlew testDebugUnitTest                                   # offline, gegen Fixtures
-SMOKE=1 ./gradlew testDebugUnitTest --tests '*LiveTest'       # gegen die echten Seiten
+./gradlew -p smoke :AniWorld:test :Filmo:test :SerienStream:test
+SMOKE=1 ./gradlew -p smoke :test --tests '*LiveTest' --rerun-tasks
+
+python3 scripts/prepare_cloudstream_gradle.py
+./gradlew make makePluginsJson
 ```
 
-Ein grüner Build heißt nur „kompiliert". Die Fixture-Tests prüfen, ob die Selektoren noch
-greifen — sie laufen in CI vor dem Build, und ein nächtlicher Workflow
-(`selector-smoke.yml`) prüft dasselbe gegen die Live-Seiten und meldet einen Site-Umbau als
-Issue. Ob Streams tatsächlich abspielen, testet weiterhin nur der Fernseher.
+Die Fixture-Tests laufen offline und unabhängig vom Android-/CloudStream-Plugin. Der tägliche
+Smoke-Test prüft neun Live-Fälle für SerienStream und Filmo; AniWorld blockiert CI-Anfragen.
+Die Ergebnisse und Logs werden bei Fehlschlägen als Workflow-Artefakt gespeichert.
+
+Für den Plugin-Build holt das Vorbereitungsskript den festgelegten Upstream-Stand
+`cce1b8d84dc796b8da4a92a64cedfb046d1937b3` nach `cloudstream-gradle/` und entfernt
+die hier nicht benötigte ADB-Deploy-Aufgabe samt JitPack-Abhängigkeit. Der Ordner ist
+generiert und wird nicht committed. Der CI-Workflow checkt denselben Commit aus.
+Ob Streams tatsächlich abspielen, testet weiterhin nur der Fernseher.
 
 ## Wenn eine Site umzieht
 
