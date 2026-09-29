@@ -19,6 +19,7 @@ on:
       - 'common/**'
       - 'SerienStream/**'
       - 'Filmo/**'
+      - 'smoke/**'
   schedule:
     # 05:17 UTC daily. Off the hour so it does not queue behind everyone else's cron.
     - cron: '17 5 * * *'
@@ -53,21 +54,20 @@ jobs:
           chmod +x gradlew
           set +e
           # Stale results would make the verdict below read a previous run's tests.
-          rm -rf ./*/build/test-results
+          rm -rf smoke/build/test-results
 
           run_smoke() {
             # --rerun-tasks: the inputs never change, so gradle would otherwise call this
             # up-to-date and skip the network entirely.
-            ./gradlew :SerienStream:testDebugUnitTest :Filmo:testDebugUnitTest \
-              --tests '*LiveTest' --rerun-tasks --stacktrace "$@" 2>&1 | tee smoke.log
+            ./gradlew -p smoke test --tests '*LiveTest' --rerun-tasks --stacktrace "$@" 2>&1 | tee smoke.log
             return "${PIPESTATUS[0]}"
           }
 
           run_smoke
           status=$?
 
-          # JitPack and other Maven repositories can have transient 404s. Gradle caches
-          # failed lookups, so the retry must refresh dependencies.
+          # Maven repositories can have transient lookup failures. Gradle caches those,
+          # so the retry must refresh dependencies.
           if [ "$status" -ne 0 ] && \
              grep -qE "Could not (find|resolve).*(recloudstream|configuration 'classpath')" smoke.log; then
             echo "Classpath did not resolve — retrying once with fresh dependencies."
@@ -78,7 +78,7 @@ jobs:
 
           # A test can fail because the site changed OR because the request itself failed
           # (DNS/TLS/403/429/5xx/timeout). Only parser assertion messages count as selector rot.
-          results=$(find . -path '*/build/test-results/testDebugUnitTest/*.xml' 2>/dev/null)
+          results=$(find smoke/build/test-results/test -name '*.xml' 2>/dev/null)
           if [ -n "$results" ]; then
             selector_failures=$(grep -lE               'parsed to nothing|selectors are stale|metadata is stale|season nav is stale|episode rows are stale|dub markers are stale|link resolution is dead|play URLs no longer carry a token|grid is stale|pager is stale|rating line is stale|Verwandte Filme.*stale|provider chips'               $results | wc -l)
           else
