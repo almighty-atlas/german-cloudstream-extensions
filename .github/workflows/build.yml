@@ -81,6 +81,9 @@ jobs:
           artifacts_to_publish=()
           for module in */build.gradle.kts; do
             provider=${module%%/*}
+            case "$provider" in
+              smoke|cloudstream-gradle) continue ;;
+            esac
             mapfile -t artifacts < <(find "$provider/build" -maxdepth 1 -name '*.cs3' -type f)
             if [ "${#artifacts[@]}" -ne 1 ] || [ ! -s "${artifacts[0]}" ]; then
               echo "Expected exactly one non-empty .cs3 for $provider" >&2
