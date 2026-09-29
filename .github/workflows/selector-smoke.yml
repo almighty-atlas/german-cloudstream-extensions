@@ -8,11 +8,17 @@ name: Selector smoke test
 # (DDoS-Guard, no solvable JS challenge), so any check against it would only ever report the
 # bot filter.
 #
-# A non-zero gradle exit is not by itself a selector break: when jitpack is mid-rebuild of the
-# cloudstream plugin snapshot, gradle dies before a single test runs. Those two outcomes are
-# told apart below and only a real test failure opens an issue.
+# A non-zero Gradle exit is not by itself a selector break. Dependency resolution and
+# live-site fetch failures are distinguished from parser assertions below.
 
 on:
+  push:
+    paths:
+      - 'build.gradle.kts'
+      - '.github/workflows/selector-smoke.yml'
+      - 'common/**'
+      - 'SerienStream/**'
+      - 'Filmo/**'
   schedule:
     # 05:17 UTC daily. Off the hour so it does not queue behind everyone else's cron.
     - cron: '17 5 * * *'
@@ -60,8 +66,8 @@ jobs:
           run_smoke
           status=$?
 
-          # jitpack builds com.github.recloudstream:gradle:-SNAPSHOT on demand and serves 404s
-          # for pom or jar while it does. Gradle caches that miss, so the retry has to refresh.
+          # JitPack and other Maven repositories can have transient 404s. Gradle caches
+          # failed lookups, so the retry must refresh dependencies.
           if [ "$status" -ne 0 ] && \
              grep -qE "Could not (find|resolve).*(recloudstream|configuration 'classpath')" smoke.log; then
             echo "Classpath did not resolve — retrying once with fresh dependencies."
