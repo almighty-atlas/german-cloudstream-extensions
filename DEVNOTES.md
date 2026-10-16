@@ -73,9 +73,11 @@ nichts. Deshalb zwei Stufen:
 Wenn eine Site umgebaut wird, **sollen** diese Tests rot werden: Fixture neu ziehen, Selektoren
 nachziehen, Version hochzählen.
 
-AniWorld ist davon ausgenommen — die Site antwortet aus CI wie aus der Sandbox auf jedem Pfad
-403 (DDoS-Guard). Dessen Tests laufen gegen **synthetische** Fixtures und sichern nur gegen
-versehentliches Refactoring, nicht gegen ein Redesign. Das ist im Test auch so dokumentiert.
+AniWorld is still excluded from the scheduled live smoke tests: earlier CI/sandbox requests
+returned 403 (DDoS-Guard). On 2026-10-16 ordinary HTTP requests succeeded and trimmed real
+captures were added alongside the explicitly synthetic fixtures. Provenance, timestamps and
+hashes are in `AniWorld/src/test/resources/fixtures/README.md`. Offline fixture tests do not
+prove ongoing reachability or playback.
 
 ## CI gotchas (already fixed, keep in mind)
 
@@ -362,17 +364,31 @@ informativer als der Extractor-Default.
 - Search: `GET /ajax/seriesSearch?keyword=X` → JSON `[{name, link, cover, productionYear}]`
 - Detail: `/anime/stream/{slug}`; seasons `.../staffel-N` + `/filme`; episode `.../staffel-N/episode-M`
 - Season table: `table.seasonEpisodesList td.seasonEpisodeTitle a` (`<strong>`=DE title, `<span>`=EN).
-  The language flags on the season page are a **static legend** (always all 3) — NOT availability.
+  **Correction, live verified 2026-10-16:** flags inside each row's `td.editFunctions` advertise
+  that episode's languages; they are NOT an always-three static legend. One Piece S22E34
+  advertises all three, E35 only German subtitles, E67 German + English subtitles. Separate
+  episode hoster captures agree. Global legends outside episode rows are not availability.
 - Real per-episode languages: the episode page hosters `li[data-link-target][data-lang-key]`
   (`1`=German Dub, `2`=English Sub, `3`=German Sub).
 - Play: `/redirect/{id}` 301 → real hoster (voe.sx, doodstream, filemoon, vidmoly…) → `loadExtractor`.
-- Home rows: `/beliebte-animes` + `/neu` use `.col-md-15` card wrappers (no flags);
-  `/neue-episoden` rows DO carry accurate per-episode flags (`/public/img/german.svg` = dub).
+- Home rows: `/beliebte-animes` + `/neu` use `.col-md-15` card wrappers (no flags).
+- `/neue-episoden`: `div.newEpisodeList div.row`, episode/film link with a `<strong>` anime
+  title and `img.flag` in `src` / lazy `data-src`, often repeated in `noscript`. Multiple rows
+  for the same episode are separate positive language updates, not mutually exclusive states.
+  Match exact path filenames: `german.svg` = dub, `japanese-german.svg` = German subtitles,
+  `japanese-english.svg` = English subtitles. A substring match for `german` confuses dub/sub.
+- Films: `/anime/stream/{slug}/filme/film-N`; the captured Prince of Tennis overview uses the
+  same episode table and `td.editFunctions` flags, but without an anchor around those flags.
+  Film numbers belong to season 0; they must not collide with regular episodes.
+- Phase 1 adds parser data only, plus a compatible `newEpisodeCards` projection. Provider
+  methods and the language cache are unchanged; the richer feed entries are not integrated
+  with any index. Empty language sets mean unknown, never verified absence.
 
 ### Request-Budget (2026-08-30)
 
-Sprachverfügbarkeit existiert hier **nur** auf der Episodenseite, kostet also einen Request pro
-Episode. Der alte Stand tat das bedingungslos: One Piece (~1150 Episoden) bedeutete ~1150 GETs
+Historical rationale (the premise that only episode pages carry languages was disproved by
+the 2026-10-16 captures above; the provider's probing pipeline is not changed in phase 1):
+Der alte Stand tat die Episodenprüfung bedingungslos: One Piece (~1150 Episoden) bedeutete ~1150 GETs
 beim bloßen Öffnen der Detailseite, dazu ~60 Requests allein zum Zeichnen des Home-Screens
 (ein Probe pro Karte). Auf einer DDoS-Guard-Site ist das nicht nur langsam, sondern der
 schnellste Weg in eine Sperre.
