@@ -15,13 +15,13 @@ sourceSets {
     main {
         kotlin {
             setSrcDirs(listOf("../../common/src/main/kotlin"))
-            include("**/SourceLanguage.kt", "**/AniWorldLanguageIndex.kt", "**/parse/*.kt")
+            include("**/SourceLanguage.kt", "**/AniWorldLanguageIndex.kt", "**/AniWorldCardPresentation.kt", "**/parse/*.kt")
         }
     }
     test {
         kotlin {
             setSrcDirs(listOf("../../AniWorld/src/test/kotlin"))
-            include("**/Fixtures.kt", "**/*ParserTest.kt", "**/*LanguageIndexTest.kt")
+            include("**/Fixtures.kt", "**/*ParserTest.kt", "**/*LanguageIndexTest.kt", "**/*CardPresentationTest.kt")
         }
         resources.setSrcDirs(listOf("../../AniWorld/src/test/resources"))
     }
