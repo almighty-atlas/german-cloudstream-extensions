@@ -3,7 +3,7 @@
         "iconUrl": "https://aniworld.to/favicon.ico",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/almighty-atlas/german-cloudstream-extensions",
-        "fileSize": 62541,
+        "fileSize": 64189,
         "status": 1,
         "language": "de",
         "authors": [
@@ -14,7 +14,7 @@
             "AnimeMovie",
             "OVA"
         ],
-        "version": 16,
+        "version": 17,
         "internalName": "AniWorld",
         "description": "★ Eigene Version — AniWorld, Anime auf Deutsch (Sub & Dub)",
         "url": "https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/builds/AniWorld.cs3",
