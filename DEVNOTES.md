@@ -419,8 +419,10 @@ sie sind **nicht** gegen die Live-Site kalibriert, weil die aus Sandbox und CI 4
   can force a fully hidden view visible. The upstream renderer uses `show_dub_key`,
   `show_sub_key` and `show_title_key`.
 - Previously AniWorld put `GerDub · GerSub · EngSub` after the (possibly long) anime title,
-  so the distinguishing text could be truncated on TV. v17 prefixes this compact, explicit
-  language text in all known-language cards while still setting native Dub/Sub statuses.
+  so the distinguishing text could be truncated on TV. v17 prefixes compact emoji language
+  markers on known-language cards: `🇩🇪🔊` = German dub, `🇩🇪💬` = German subtitles,
+  `🇬🇧💬` = English subtitles, e.g. `🇩🇪🔊 🇩🇪💬 🇬🇧💬 | One Piece`.
+  These symbols distinguish audio from subtitle tracks while native Dub/Sub badges remain.
   Unknown cards keep the unmodified title.
 - The new pure `AniWorldCardPresentation` helper and feed-to-card regression tests verify
   the displayed field and both native badge booleans, including the real 2026-10-16 feed

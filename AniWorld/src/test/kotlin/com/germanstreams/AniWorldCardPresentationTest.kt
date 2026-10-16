@@ -17,7 +17,7 @@ class AniWorldCardPresentationTest {
             setOf(SourceLanguage.GermanDub, SourceLanguage.GermanSub, SourceLanguage.EnglishSub),
         )
         assertEquals(
-            "GerDub · GerSub · EngSub | JoJo's Bizarre Adventure (2012)",
+            "🇩🇪🔊 🇩🇪💬 🇬🇧💬 | JoJo's Bizarre Adventure (2012)",
             fields.displayName,
         )
         assertTrue(fields.hasDubBadge)
@@ -33,6 +33,14 @@ class AniWorldCardPresentationTest {
                 if (mask and 4 != 0) add(SourceLanguage.EnglishSub)
             }
             val actual = AniWorldCardPresentation.fields("Test Anime", langs)
+            val symbols = listOfNotNull(
+                "🇩🇪🔊".takeIf { SourceLanguage.GermanDub in langs },
+                "🇩🇪💬".takeIf { SourceLanguage.GermanSub in langs },
+                "🇬🇧💬".takeIf { SourceLanguage.EnglishSub in langs },
+            )
+            val expectedName = if (symbols.isEmpty()) "Test Anime"
+                else "${symbols.joinToString(" ")} | Test Anime"
+            assertEquals(expectedName, actual.displayName, "text mask $mask")
             assertEquals(SourceLanguage.GermanDub in langs, actual.hasDubBadge, "dub mask $mask")
             assertEquals(
                 SourceLanguage.GermanSub in langs || SourceLanguage.EnglishSub in langs,
@@ -45,7 +53,7 @@ class AniWorldCardPresentationTest {
     @Test
     fun `engsub only is not falsely labelled gersub`() {
         val actual = AniWorldCardPresentation.fields("Film", setOf(SourceLanguage.EnglishSub))
-        assertEquals("EngSub | Film", actual.displayName)
+        assertEquals("🇬🇧💬 | Film", actual.displayName)
         assertFalse(actual.hasDubBadge)
         assertTrue(actual.hasSubBadge)
     }
@@ -78,7 +86,7 @@ class AniWorldCardPresentationTest {
             AniWorldCardPresentation.fields(
                 observed.getValue("/anime/stream/link-click").title,
                 AniWorldLanguageIndex.languages("/anime/stream/link-click"),
-            ).displayName.startsWith("GerSub · EngSub | "),
+            ).displayName.startsWith("🇩🇪💬 🇬🇧💬 | "),
         )
     }
 
@@ -94,6 +102,6 @@ class AniWorldCardPresentationTest {
         val shown = AniWorldCardPresentation.fields(
             "Link Click", AniWorldLanguageIndex.languages(href),
         )
-        assertEquals("GerDub · GerSub · EngSub | Link Click", shown.displayName)
+        assertEquals("🇩🇪🔊 🇩🇪💬 🇬🇧💬 | Link Click", shown.displayName)
     }
 }

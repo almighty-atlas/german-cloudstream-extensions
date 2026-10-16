@@ -33,13 +33,15 @@ object AniWorldCardPresentation {
         }
 
     fun fields(title: String, languages: Set<SourceLanguage>): Fields {
+        // Flags are compact on TV; 🔊 (audio) and 💬 (subtitles) distinguish
+        // the two German variants. English subtitles use the 🇬🇧 symbol.
         val labels = listOfNotNull(
-            "GerDub".takeIf { SourceLanguage.GermanDub in languages },
-            "GerSub".takeIf { SourceLanguage.GermanSub in languages },
-            "EngSub".takeIf { SourceLanguage.EnglishSub in languages },
+            "🇩🇪🔊".takeIf { SourceLanguage.GermanDub in languages },
+            "🇩🇪💬".takeIf { SourceLanguage.GermanSub in languages },
+            "🇬🇧💬".takeIf { SourceLanguage.EnglishSub in languages },
         )
         return Fields(
-            displayName = if (labels.isEmpty()) title else "${labels.joinToString(" · ")} | $title",
+            displayName = if (labels.isEmpty()) title else "${labels.joinToString(" ")} | $title",
             hasDubBadge = SourceLanguage.GermanDub in languages,
             hasSubBadge = SourceLanguage.GermanSub in languages || SourceLanguage.EnglishSub in languages,
         )
