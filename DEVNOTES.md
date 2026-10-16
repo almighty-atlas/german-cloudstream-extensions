@@ -93,6 +93,56 @@ versehentliches Refactoring, nicht gegen ein Redesign. Das ist im Test auch so d
   the miss, so a retry only helps with `--refresh-dependencies`; the smoke workflow now does that
   once before giving up.
 
+### JVM target alignment and local Android validation (2026-10-16)
+
+- Root cause reproduced on `main` at `4215375`: Kotlin cannot inline JVM 11 bytecode
+  from CloudStream's `pre-release` stubs into JVM 1.8 provider classes. The resolved
+  `AppUtils` and `MainAPI` classes have classfile major version 55 (Java 11).
+  Stub JAR SHA256: `12762d1442c884605b6990fe112a80a0e906c56d7cca12a3df5ce65e3dbf0e01`.
+- Fix: align Java `sourceCompatibility` / `targetCompatibility` and Kotlin `jvmTarget`
+  to 11 centrally for all providers. No dependency, provider, parser or version changes.
+  Raising only Kotlin's target would leave Java/Kotlin compile targets inconsistent;
+  downgrading moving stubs or suppressing inline checks does not address the mismatch.
+- Build JVM remains **JDK 17**, required by AGP 8.7.3; JVM target 11 is not the JDK
+  used to run Gradle. Validated with Gradle 8.12, Kotlin Gradle plugin 2.3.0, JDK
+  17.0.20.1, compile/target SDK 35 and AGP's default Build Tools 34.0.0. No upgrades needed.
+  [AGP compatibility](https://developer.android.com/build/releases/past-releases/agp-8-7-0-release-notes)
+  / [Android Java versions](https://developer.android.com/build/jdks).
+- Pinned CloudStream Gradle plugin `cce1b8d84dc796b8da4a92a64cedfb046d1937b3`
+  builds itself with Kotlin 2.0.0 / JVM 11 and does not force provider JVM 1.8.
+  Its `CompileDexTask` uses D8 with `withDesugaring = true` and the configured minSdk.
+  **minSdk stays 21 (Android 5.0)**: JVM 11 bytecode is converted to DEX, not run by a
+  Java 11 VM on the device. This does not backport newer Java library APIs;
+  `coreLibDesugarConfig` remains null and no such API use is added by this fix.
+
+Local commands (no GitHub Actions/workflow dispatch):
+
+```sh
+python3 scripts/prepare_cloudstream_gradle.py
+JAVA_HOME=/usr/lib/jvm/java-17-openjdk \
+ANDROID_HOME=/home/atlas/Android/Sdk ANDROID_SDK_ROOT=/home/atlas/Android/Sdk \
+GITHUB_REPOSITORY=almighty-atlas/german-cloudstream-extensions \
+./gradlew :AniWorld:clean :Filmo:clean :SerienStream:clean \
+  assembleDebug make makePluginsJson testDebugUnitTest --no-daemon --rerun-tasks
+JAVA_HOME=/usr/lib/jvm/java-17-openjdk \
+./gradlew -p smoke :AniWorld:test :Filmo:test :SerienStream:test --no-daemon --rerun-tasks
+```
+
+- Full Android build: **successful, 104 tasks executed**. Each provider produced a
+  nonempty debug AAR and `.cs3` with a valid ZIP, `manifest.json` and `classes.dex`
+  (DEX 035). `build/plugins.json` contains exactly three entries. Provider classfiles
+  are major 55. Artifacts remain local and ignored; nothing was published.
+- Regression tests on `main`: **37 fixture/language tests passed** (AniWorld 6,
+  Filmo 13, SerienStream/SourceLanguage 18) in both Android and isolated JVM runners.
+  Android XML reports list 46 methods because nine live-test methods return early
+  without `SMOKE=1`; these are not successful live checks. PR #6 tests are not included.
+- D8 emits nonfatal `Unexpected error during rewriting of Kotlin metadata` warnings.
+  The same warning also occurs when building SerienStream from the unchanged JVM 1.8
+  base, so it is not introduced by target alignment. It remains a separate toolchain
+  concern, not a reason to hide diagnostics or upgrade dependencies in this fix.
+- Successful packaging and tests are not proof of runtime playback or plugin loading
+  on Android TV; no device test was performed. PR #6 remains separate and unchanged.
+
 ## CloudStream behaviour learned
 
 - Source order in the player = `getLinkPriority = quality.defaultPriority(0–8) + sourcePriority(=1
