@@ -406,3 +406,29 @@ Jetzt:
 
 Die Zahlen (60 / 3 / 8) sind Konstanten oben in `AniWorldProvider` und bewusst konservativ —
 sie sind **nicht** gegen die Live-Site kalibriert, weil die aus Sandbox und CI 403 liefert.
+
+
+### AniWorld v17: TV card labels (2026-10-16)
+
+- Android-TV field test of v16: plugin installed and One Piece S22 episode languages were
+  correct; no visible language labels on "Neue Episoden" cards. Search after opening a
+  detail page was not tested. This does not establish whether the feed, the provider card,
+  or the CloudStream poster layout hid the information.
+- The CloudStream card renderer can hide both native Dub/Sub chips and card titles by user
+  preference; some compact layouts do not contain the badge views. No provider response
+  can force a fully hidden view visible. The upstream renderer uses `show_dub_key`,
+  `show_sub_key` and `show_title_key`.
+- Previously AniWorld put `GerDub · GerSub · EngSub` after the (possibly long) anime title,
+  so the distinguishing text could be truncated on TV. v17 prefixes this compact, explicit
+  language text in all known-language cards while still setting native Dub/Sub statuses.
+  Unknown cards keep the unmodified title.
+- The new pure `AniWorldCardPresentation` helper and feed-to-card regression tests verify
+  the displayed field and both native badge booleans, including the real 2026-10-16 feed
+  capture, duplicates and previously learned languages. They do not test the Android-TV
+  renderer itself.
+- When validating on Android TV, enable the CloudStream poster settings for showing
+  titles and Dub/Sub badges, refresh "Neue Episoden", and compare the visible text and
+  badge status; also check AniWorld search after opening One Piece. If labels still do
+  not appear, capture the CloudStream layout and investigate application-side behavior.
+- No new language HTTP requests and no persistent index are introduced. Detailed episode
+  and season language labels, provider identity and link resolution remain unchanged.

@@ -2,6 +2,7 @@ package com.germanstreams
 
 import com.germanstreams.common.EpisodeLanguageCache
 import com.germanstreams.common.AniWorldLanguageIndex
+import com.germanstreams.common.AniWorldCardPresentation
 import com.germanstreams.common.Net
 import com.germanstreams.common.SourceCollector
 import com.germanstreams.common.SourceLanguage
@@ -50,15 +51,11 @@ class AniWorldProvider : MainAPI() {
         // Feed rows already advertise languages. Share their positive observations with
         // future catalog/search responses; unknown entries remain unlabelled.
         val items = if ("/neue-episoden" in request.data) {
-            AniWorldParser.newEpisodeEntries(doc)
-                .groupBy { it.reference.animeHref }
-                .values
-                .map { entries ->
-                    val first = entries.first()
-                    val languages = entries.flatMap { it.languages }.toSet()
-                    AniWorldLanguageIndex.observe(first.reference.animeHref, languages)
-                    animeCard(first.title, first.reference.animeHref, null)
-                }
+            // Collect every positive observation before creating cards. This makes the
+            // feed projection deterministic and shares its evidence with subsequent searches.
+            val feedCards = AniWorldCardPresentation.feedCards(AniWorldParser.newEpisodeEntries(doc))
+            feedCards.forEach { AniWorldLanguageIndex.observe(it.animeHref, it.languages) }
+            feedCards.map { animeCard(it.title, it.animeHref, null) }
         } else {
             AniWorldParser.cards(doc).map { card ->
                 animeCard(card.title, card.href, card.poster)
@@ -156,15 +153,12 @@ class AniWorldProvider : MainAPI() {
         poster: String?,
         year: Int? = null,
     ): AnimeSearchResponse {
-        val languages = AniWorldLanguageIndex.languages(href)
-        return newAnimeSearchResponse(appendLanguages(title, languages), fixUrl(href), TvType.Anime) {
+        val card = AniWorldCardPresentation.fields(title, AniWorldLanguageIndex.languages(href))
+        return newAnimeSearchResponse(card.displayName, fixUrl(href), TvType.Anime) {
             this.posterUrl = fixUrlNull(poster)
             this.year = year
-            if (languages.isNotEmpty()) {
-                addDubStatus(
-                    dubExist = SourceLanguage.GermanDub in languages,
-                    subExist = SourceLanguage.GermanSub in languages || SourceLanguage.EnglishSub in languages,
-                )
+            if (card.hasDubBadge || card.hasSubBadge) {
+                addDubStatus(dubExist = card.hasDubBadge, subExist = card.hasSubBadge)
             }
         }
     }
