@@ -1,6 +1,7 @@
 package com.germanstreams
 
 import com.germanstreams.common.EpisodeLanguageCache
+import com.germanstreams.common.AniWorldLanguageIndex
 import com.germanstreams.common.Net
 import com.germanstreams.common.SourceCollector
 import com.germanstreams.common.SourceLanguage
@@ -29,24 +30,8 @@ class AniWorldProvider : MainAPI() {
      */
     override var canBeOverridden = true
 
-    /**
-     * Upper bound on episode pages fetched to determine languages for one series.
-     *
-     * Language availability only exists on the episode page here, so accuracy costs one
-     * request per episode. That is fine for a 24-episode season and catastrophic for a
-     * 1000-episode one: the old build fired a request per episode unconditionally, which on
-     * a DDoS-Guard site is both minutes of load time and a good way to get blocked.
-     *
-     * Below the budget every episode is resolved exactly, as before. Above it the provider
-     * samples each season instead and labels the season rather than the episodes.
-     */
-    private val probeBudget = 60
-
-    /** Episodes sampled per season once the series is over [probeBudget]. */
-    private val samplesPerSeason = 3
-
-    /** Concurrency per batch. Deliberately modest — this site blocks bursts. */
-    private val batchSize = 8
+    // Bound ordinary season-page requests; language detection adds no episode-page fetches.
+    private val seasonBatchSize = 3
 
     override val mainPage = mainPageOf(
         "$mainUrl/neue-episoden" to "Neue Episoden",
@@ -62,21 +47,21 @@ class AniWorldProvider : MainAPI() {
         if (page > 1) return newHomePageResponse(request.name, emptyList(), hasNext = false)
         val doc = document(request.data)
 
-        // /neue-episoden is the one listing whose rows carry a real German-dub flag. Every
-        // other listing carries none, and probing for it would mean one request per card just
-        // to draw the home screen — the badge is not worth that.
+        // Feed rows already advertise languages. Share their positive observations with
+        // future catalog/search responses; unknown entries remain unlabelled.
         val items = if ("/neue-episoden" in request.data) {
-            AniWorldParser.newEpisodeCards(doc).map { (card, dub) ->
-                newAnimeSearchResponse(card.title, fixUrl(card.href), TvType.Anime) {
-                    this.posterUrl = fixUrlNull(card.poster)
-                    if (dub) addDubStatus(dubExist = true, subExist = false)
+            AniWorldParser.newEpisodeEntries(doc)
+                .groupBy { it.reference.animeHref }
+                .values
+                .map { entries ->
+                    val first = entries.first()
+                    val languages = entries.flatMap { it.languages }.toSet()
+                    AniWorldLanguageIndex.observe(first.reference.animeHref, languages)
+                    animeCard(first.title, first.reference.animeHref, null, languages)
                 }
-            }
         } else {
             AniWorldParser.cards(doc).map { card ->
-                newAnimeSearchResponse(card.title, fixUrl(card.href), TvType.Anime) {
-                    this.posterUrl = fixUrlNull(card.poster)
-                }
+                animeCard(card.title, card.href, card.poster)
             }
         }
         return newHomePageResponse(request.name, items, hasNext = false)
@@ -96,10 +81,8 @@ class AniWorldProvider : MainAPI() {
         return items.mapNotNull { item ->
             val link = item.link ?: return@mapNotNull null
             val name = item.name?.unescapeHtml() ?: return@mapNotNull null
-            newAnimeSearchResponse(name, "$mainUrl/anime/stream/$link", TvType.Anime) {
-                this.posterUrl = fixUrlNull(item.cover)
-                this.year = item.productionYear?.take(4)?.toIntOrNull()
-            }
+            val href = "$mainUrl/anime/stream/$link"
+            animeCard(name, href, item.cover, year = item.productionYear?.take(4)?.toIntOrNull())
         }
     }
 
@@ -112,33 +95,39 @@ class AniWorldProvider : MainAPI() {
             .distinct()
             .ifEmpty { listOf(url) } // single-season shows list episodes on the detail page
 
-        // The language flags on a season page are a static legend — always all three,
-        // regardless of what the episode offers — so they are not read here.
-        val refs: List<Pair<Int, ParsedEpisode>> = seasonUrls.amap { seasonUrl ->
-            val sdoc = if (seasonUrl == url) doc else document(seasonUrl)
-            val season = AniWorldParser.seasonNumber(seasonUrl)
-            AniWorldParser.episodes(sdoc).map { season to it }
-        }.flatten()
+        // The captured AniWorld season tables contain real per-episode languages. Read the
+        // existing page responses once; no per-episode HTTP probes or sampling are needed.
+        val refs: List<Pair<Int, ParsedEpisode>> = seasonUrls.chunked(seasonBatchSize)
+            .flatMap { batch ->
+                batch.amap { seasonUrl ->
+                    val sdoc = if (seasonUrl == url) doc else document(seasonUrl)
+                    val season = AniWorldParser.seasonNumber(seasonUrl)
+                    AniWorldParser.episodes(sdoc).map { season to it }
+                }.flatten()
+            }
 
-        val languages = resolveLanguages(refs)
+        val observed = refs.map { (season, ep) ->
+            val episodeUrl = fixUrl(ep.href)
+            val languageSet = ep.languages.ifEmpty { EpisodeLanguageCache[episodeUrl].orEmpty() }
+            if (ep.languages.isNotEmpty()) EpisodeLanguageCache.put(episodeUrl, ep.languages)
+            Triple(season, ep, languageSet)
+        }
+        AniWorldLanguageIndex.observe(url, observed.flatMap { it.third }.toSet())
 
-        val episodes = refs.map { (season, ep) ->
+        val episodes = observed.map { (season, ep, languages) ->
             val epUrl = fixUrl(ep.href)
-            val hasDub = languages.perEpisode[epUrl]?.contains(SourceLanguage.GermanDub) == true
             newEpisode(epUrl) {
-                this.name = listOfNotNull(ep.title?.ifBlank { null }, "🇩🇪".takeIf { hasDub })
-                    .joinToString(" ").ifBlank { null }
+                this.name = appendLanguages(ep.title.orEmpty(), languages).ifBlank { null }
                 this.season = season
                 this.episode = ep.number
             }
         }
 
-        // Flag whole seasons that contain at least one German-dub episode. With sampling this
-        // is the level the data is actually accurate at, so it is always filled in.
-        val seasonNames = refs.groupBy { it.first }.toSortedMap().map { (season, _) ->
-            val dub = season in languages.dubbedSeasons
+        val seasonLanguages = observed.groupBy { it.first }
+            .mapValues { (_, rows) -> rows.flatMap { it.third }.toSet() }
+        val seasonNames = seasonLanguages.toSortedMap().map { (season, languages) ->
             val label = if (season == 0) "Filme" else "Staffel $season"
-            SeasonData(season, if (dub) "$label 🇩🇪" else label)
+            SeasonData(season, appendLanguages(label, languages))
         }
 
         return newAnimeLoadResponse(meta.title, url, TvType.Anime) {
@@ -152,62 +141,34 @@ class AniWorldProvider : MainAPI() {
         }
     }
 
-    /**
-     * Determines the language tracks per episode, within [probeBudget] requests.
-     *
-     * Anything already memoised is free, so re-opening a series costs nothing. For what is
-     * left: a series that fits the budget is resolved exactly; a longer one is sampled per
-     * season. Samples affect the season label, while episode labels require direct evidence.
-     */
-    private data class LanguageResolution(
-        val perEpisode: Map<String, Set<SourceLanguage>>,
-        val dubbedSeasons: Set<Int>,
-    )
-
-    private suspend fun resolveLanguages(
-        refs: List<Pair<Int, ParsedEpisode>>,
-    ): LanguageResolution {
-        val urls = refs.map { fixUrl(it.second.href) }
-        val known = urls.mapNotNull { url -> EpisodeLanguageCache[url]?.let { url to it } }.toMap()
-        val missing = urls.filter { it !in known }
-        if (missing.isEmpty() || missing.size <= probeBudget) {
-            val exact = known + probe(missing)
-            return LanguageResolution(exact, dubbedSeasons(refs, exact))
-        }
-
-        // Over budget: sample evenly within each season.
-        val bySeason = refs.groupBy { it.first }
-        val samples = bySeason.values.flatMap { seasonEps ->
-            val seasonUrls = seasonEps.map { fixUrl(it.second.href) }.filter { it !in known }
-            if (seasonUrls.isEmpty()) return@flatMap emptyList<String>()
-            val step = maxOf(1, seasonUrls.size / samplesPerSeason)
-            seasonUrls.filterIndexed { index, _ -> index % step == 0 }.take(samplesPerSeason)
-        }
-
-        val probed = probe(samples)
-        // A sample can justify a season badge, but not a badge on every untested episode.
-        val observed = known + probed
-        return LanguageResolution(observed, dubbedSeasons(refs, observed))
+    private fun appendLanguages(title: String, languages: Set<SourceLanguage>): String {
+        val suffix = listOfNotNull(
+            "GerDub".takeIf { SourceLanguage.GermanDub in languages },
+            "GerSub".takeIf { SourceLanguage.GermanSub in languages },
+            "EngSub".takeIf { SourceLanguage.EnglishSub in languages },
+        ).joinToString(" · ")
+        return listOf(title.trim(), suffix).filter { it.isNotEmpty() }.joinToString(" · ")
     }
 
-    private fun dubbedSeasons(
-        refs: List<Pair<Int, ParsedEpisode>>,
-        observed: Map<String, Set<SourceLanguage>>,
-    ): Set<Int> = refs.mapNotNull { (season, episode) ->
-        season.takeIf {
-            SourceLanguage.GermanDub in observed[fixUrl(episode.href)].orEmpty()
-        }
-    }.toSet()
-
-    private suspend fun probe(urls: List<String>): Map<String, Set<SourceLanguage>> =
-        urls.chunked(batchSize).flatMap { chunk ->
-            chunk.amap { url ->
-                val languages = runCatching { AniWorldParser.hosterLanguages(document(url)) }
-                    .getOrDefault(emptySet())
-                if (languages.isNotEmpty()) EpisodeLanguageCache.put(url, languages)
-                url to languages
+    private fun animeCard(
+        title: String,
+        href: String,
+        poster: String?,
+        observed: Set<SourceLanguage> = AniWorldLanguageIndex.languages(href),
+        year: Int? = null,
+    ): AnimeSearchResponse {
+        val languages = observed
+        return newAnimeSearchResponse(appendLanguages(title, languages), fixUrl(href), TvType.Anime) {
+            this.posterUrl = fixUrlNull(poster)
+            this.year = year
+            if (languages.isNotEmpty()) {
+                addDubStatus(
+                    dubExist = SourceLanguage.GermanDub in languages,
+                    subExist = SourceLanguage.GermanSub in languages,
+                )
             }
-        }.toMap()
+        }
+    }
 
     override suspend fun loadLinks(
         data: String,
@@ -225,7 +186,10 @@ class AniWorldProvider : MainAPI() {
         // Remember what this page said; it is the same data load() pays for.
         AniWorldParser.hosterLanguages(doc)
             .takeIf { it.isNotEmpty() }
-            ?.let { EpisodeLanguageCache.put(pageUrl, it) }
+            ?.let {
+                EpisodeLanguageCache.put(fixUrl(pageUrl), it)
+                AniWorldLanguageIndex.observe(pageUrl, it)
+            }
 
         val collector = SourceCollector(mainUrl)
         hosters.amap { hoster ->
