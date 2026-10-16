@@ -57,7 +57,7 @@ class AniWorldProvider : MainAPI() {
                     val first = entries.first()
                     val languages = entries.flatMap { it.languages }.toSet()
                     AniWorldLanguageIndex.observe(first.reference.animeHref, languages)
-                    animeCard(first.title, first.reference.animeHref, null, languages)
+                    animeCard(first.title, first.reference.animeHref, null)
                 }
         } else {
             AniWorldParser.cards(doc).map { card ->
@@ -154,17 +154,16 @@ class AniWorldProvider : MainAPI() {
         title: String,
         href: String,
         poster: String?,
-        observed: Set<SourceLanguage> = AniWorldLanguageIndex.languages(href),
         year: Int? = null,
     ): AnimeSearchResponse {
-        val languages = observed
+        val languages = AniWorldLanguageIndex.languages(href)
         return newAnimeSearchResponse(appendLanguages(title, languages), fixUrl(href), TvType.Anime) {
             this.posterUrl = fixUrlNull(poster)
             this.year = year
             if (languages.isNotEmpty()) {
                 addDubStatus(
                     dubExist = SourceLanguage.GermanDub in languages,
-                    subExist = SourceLanguage.GermanSub in languages,
+                    subExist = SourceLanguage.GermanSub in languages || SourceLanguage.EnglishSub in languages,
                 )
             }
         }

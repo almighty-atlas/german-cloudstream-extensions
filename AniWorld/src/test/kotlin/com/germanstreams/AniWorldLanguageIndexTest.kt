@@ -2,6 +2,7 @@ package com.germanstreams
 
 import com.germanstreams.common.AniWorldLanguageIndex
 import com.germanstreams.common.SourceLanguage
+import com.germanstreams.common.parse.AniWorldParser
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -21,6 +22,20 @@ class AniWorldLanguageIndexTest {
         assertEquals(setOf(SourceLanguage.GermanDub, SourceLanguage.GermanSub, SourceLanguage.EnglishSub),
             AniWorldLanguageIndex.languages("/anime/stream/one-piece"))
         assertEquals(1, AniWorldLanguageIndex.size())
+    }
+
+    @Test fun `feed updates retain earlier episode language evidence for cards`() {
+        AniWorldLanguageIndex.clear()
+        val href = "/anime/stream/link-click"
+        AniWorldLanguageIndex.observe("$href/staffel-1/episode-1", setOf(SourceLanguage.GermanDub))
+        val entries = AniWorldParser.newEpisodeEntries(Fixtures.document("aniworld-new-episodes-live.html"))
+            .filter { it.reference.animeHref == href }
+        assertEquals(1, entries.size)
+        entries.forEach { AniWorldLanguageIndex.observe(it.reference.animeHref, it.languages) }
+        assertEquals(
+            setOf(SourceLanguage.GermanDub, SourceLanguage.GermanSub, SourceLanguage.EnglishSub),
+            AniWorldLanguageIndex.languages(href),
+        )
     }
 
     @Test fun `unknown results do not erase positive evidence or add sub automatically`() {
