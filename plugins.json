@@ -3,7 +3,7 @@
         "iconUrl": "https://aniworld.to/favicon.ico",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/almighty-atlas/german-cloudstream-extensions",
-        "fileSize": 59961,
+        "fileSize": 62541,
         "status": 1,
         "language": "de",
         "authors": [
@@ -14,9 +14,9 @@
             "AnimeMovie",
             "OVA"
         ],
-        "version": 15,
+        "version": 16,
         "internalName": "AniWorld",
-        "description": "\u2605 Eigene Version \u2014 AniWorld, Anime auf Deutsch (Sub & Dub)",
+        "description": "★ Eigene Version — AniWorld, Anime auf Deutsch (Sub & Dub)",
         "url": "https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/builds/AniWorld.cs3",
         "name": "AniWorld"
     },
@@ -35,7 +35,7 @@
         ],
         "version": 5,
         "internalName": "Filmo",
-        "description": "\u2605 Eigene Version \u2014 Filmo, Filme auf Deutsch",
+        "description": "★ Eigene Version — Filmo, Filme auf Deutsch",
         "url": "https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/builds/Filmo.cs3",
         "name": "Filmo"
     },
@@ -54,7 +54,7 @@
         ],
         "version": 6,
         "internalName": "SerienStream",
-        "description": "\u2605 Eigene Version \u2014 SerienStream (s.to), Serien auf Deutsch",
+        "description": "★ Eigene Version — SerienStream (s.to), Serien auf Deutsch",
         "url": "https://raw.githubusercontent.com/almighty-atlas/german-cloudstream-extensions/builds/SerienStream.cs3",
         "name": "SerienStream"
     }
